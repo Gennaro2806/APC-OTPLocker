@@ -1,0 +1,190 @@
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+
+const char* ssid = "Genny";
+const char* password = "x095ac6po89";
+
+const char* botToken = "8636959141:AAHTu06-GSurq364-HspS5j8s8yYP64Rphw";
+const char* chatId = "8263269862";
+
+bool connettiWiFiPulito() {
+  Serial.println("\n[WIFI] Reset completo stack WiFi...");
+
+  WiFi.persistent(false);      // evita salvataggi strani in flash
+  WiFi.disconnect(true, true); // disconnette e cancella config precedente
+  delay(1000);
+
+  WiFi.mode(WIFI_OFF);         // spegne completamente il WiFi
+  delay(1000);
+
+  WiFi.mode(WIFI_STA);         // modalità station
+  delay(500);
+
+  Serial.print("[WIFI] Connessione a: ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  int tentativi = 0;
+  while (WiFi.status() != WL_CONNECTED && tentativi < 40) {
+    delay(500);
+    Serial.print(".");
+    tentativi++;
+  }
+
+  Serial.println();
+  Serial.print("[WIFI] Stato finale: ");
+  Serial.println(WiFi.status());
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("[WIFI] Connesso!");
+    Serial.print("[WIFI] IP: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("[WIFI] RSSI: ");
+    Serial.println(WiFi.RSSI());
+    return true;
+  }
+
+  Serial.println("[WIFI] Connessione fallita.");
+  return false;
+}
+
+bool assicuratiWiFiConnesso() {
+  if (WiFi.status() == WL_CONNECTED) {
+    return true;
+  }
+
+  Serial.println("[WIFI] Non connesso, provo a riconnettere...");
+  return connettiWiFiPulito();
+}
+
+String urlEncode(String text) {
+  String encoded = "";
+  char c;
+  char code0;
+  char code1;
+
+  for (int i = 0; i < text.length(); i++) {
+    c = text.charAt(i);
+
+    if (isalnum(c)) {
+      encoded += c;
+    } else if (c == ' ') {
+      encoded += "%20";
+    } else if (c == '\n') {
+      encoded += "%0A";
+    } else {
+      code1 = (c & 0xF) + '0';
+      if ((c & 0xF) > 9) code1 = (c & 0xF) - 10 + 'A';
+
+      c = (c >> 4) & 0xF;
+      code0 = c + '0';
+      if (c > 9) code0 = c - 10 + 'A';
+
+      encoded += '%';
+      encoded += code0;
+      encoded += code1;
+    }
+  }
+
+  return encoded;
+}
+
+bool inviaMessaggioTelegram(const String& testo) {
+  if (!assicuratiWiFiConnesso()) {
+    Serial.println("[TELEGRAM] Invio annullato: WiFi non disponibile.");
+    return false;
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure(); // per test iniziali va bene
+
+  Serial.println("[TELEGRAM] Connessione a api.telegram.org...");
+
+  if (!client.connect("api.telegram.org", 443)) {
+    Serial.println("[TELEGRAM] Connessione HTTPS fallita.");
+    return false;
+  }
+
+  String testoCodificato = urlEncode(testo);
+
+  String url = "/bot" + String(botToken) +
+               "/sendMessage?chat_id=" + String(chatId) +
+               "&text=" + testoCodificato;
+
+  Serial.print("[TELEGRAM] Richiesta GET: ");
+  Serial.println(url);
+
+  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+               "Host: api.telegram.org\r\n" +
+               "User-Agent: ESP32-C3\r\n" +
+               "Connection: close\r\n\r\n");
+
+  unsigned long start = millis();
+  while (client.connected() && !client.available()) {
+    if (millis() - start > 8000) {
+      Serial.println("[TELEGRAM] Timeout risposta server.");
+      client.stop();
+      return false;
+    }
+    delay(10);
+  }
+
+  Serial.println("[TELEGRAM] Risposta server:");
+  bool okHttp = false;
+
+  while (client.available()) {
+    String line = client.readStringUntil('\n');
+    Serial.println(line);
+
+    if (line.indexOf("200 OK") >= 0) {
+      okHttp = true;
+    }
+  }
+
+  client.stop();
+
+  if (okHttp) {
+    Serial.println("[TELEGRAM] Messaggio inviato con successo.");
+    return true;
+  } else {
+    Serial.println("[TELEGRAM] Invio non confermato.");
+    return false;
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(3000);
+
+  Serial.println("\n=== AVVIO ESP32-C3 ===");
+
+  if (connettiWiFiPulito()) {
+    inviaMessaggioTelegram("Ciao! ESP32-C3 online e connessa al WiFi.");
+  } else {
+    Serial.println("[SETUP] WiFi non disponibile, niente invio Telegram.");
+  }
+}
+
+void loop() {
+  static unsigned long ultimoInvio = 0;
+  const unsigned long intervallo = 30000; // 30 secondi, solo per test
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[LOOP] WiFi perso.");
+    connettiWiFiPulito();
+  } else {
+    Serial.println("[LOOP] WiFi OK.");
+  }
+
+  if (millis() - ultimoInvio > intervallo) {
+    ultimoInvio = millis();
+
+    bool esito = inviaMessaggioTelegram("Messaggio periodico da ESP32-C3. WiFi attivo.");
+    if (!esito) {
+      Serial.println("[LOOP] Invio Telegram fallito.");
+    }
+  }
+
+  delay(5000);
+}

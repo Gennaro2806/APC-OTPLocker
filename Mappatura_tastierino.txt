@@ -1,0 +1,10 @@
+bianco -> riga 1
+nero -> riga 2
+marrone -> riga 3
+rosso -> riga 4
+
+
+verde -> colonna 1
+blue -> colonna 2
+viola -> colonna 3
+grigio -> colonna 4

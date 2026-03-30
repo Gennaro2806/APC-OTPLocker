@@ -1,0 +1,6 @@
+../Core/Src/alarm.c:15:13:Alarm_SetSelectedLeds	9
+../Core/Src/alarm.c:27:6:Alarm_Init	1
+../Core/Src/alarm.c:32:6:Alarm_Start	3
+../Core/Src/alarm.c:58:6:Alarm_Stop	2
+../Core/Src/alarm.c:75:6:Alarm_IsActive	1
+../Core/Src/alarm.c:80:6:Alarm_Update	8
