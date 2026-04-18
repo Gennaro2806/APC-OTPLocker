@@ -3,6 +3,7 @@
 #include "alarm.h"
 #include "servo.h"
 #include "ssd1306.h"
+#include "esp_uart.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -27,6 +28,7 @@
 #define OPENING_SETTLE_MS            700
 #define OPEN_STATE_TIMEOUT_MS        100000
 #define OTP_ENTRY_TIMEOUT_MS         60000
+#define NEW_PIN_NOT_VALID_TIME		 2000
 
 /* Per ora usiamo i LED onboard STM32.
    In futuro ti basterà cambiare queste maschere o il modulo alarm. */
@@ -82,6 +84,12 @@ static bool servoIsOpen = false;
    HELPER PRIVATI
    ========================= */
 
+static void FSM_GenerateOtp(void)
+{
+    uint32_t value = HAL_GetTick() % 1000000;
+    snprintf(storedOtp, sizeof(storedOtp), "%06lu", (unsigned long)value);
+}
+
 static void FSM_Transition(SystemState nextState)
 {
     currentState = nextState;
@@ -112,15 +120,44 @@ static bool FSM_IsDigit(char key)
 
 static void FSM_DisplayMessage(const char *line1, const char *line2)
 {
-    SSD1306_Clear();
+	uint8_t x1 = 0;
+	    uint8_t x2 = 0;
 
-    SSD1306_SetCursor(0, 0);
-    SSD1306_WriteString((char *)line1);
+	    if (line1 == NULL) line1 = "";
+	    if (line2 == NULL) line2 = "";
 
-    SSD1306_SetCursor(0, 2);
-    SSD1306_WriteString((char *)line2);
+	    /* centratura approssimata:
+	       font 5x7 + 1 colonna spazio = circa 6 px per carattere */
+	    uint8_t len1 = strlen(line1);
+	    uint8_t len2 = strlen(line2);
 
-    SSD1306_UpdateScreen();
+	    uint8_t w1 = len1 * 6;
+	    uint8_t w2 = len2 * 6;
+
+	    if (w1 < 128) x1 = (128 - w1) / 2;
+	    if (w2 < 128) x2 = (128 - w2) / 2;
+
+	    SSD1306_Clear();
+
+	    /* cornice esterna */
+	    SSD1306_DrawRect(0, 0, 128, 64, 1);
+
+	    /* cornice interna */
+	    SSD1306_DrawRect(3, 3, 122, 58, 1);
+
+	    /* linea separatrice */
+	    SSD1306_DrawHLine(10, 24, 108, 1);
+
+	    /* prima riga */
+	    SSD1306_SetCursor(x1, 1);
+	    SSD1306_WriteString(line1);
+
+	    /* seconda riga */
+	    SSD1306_SetCursor(x2, 4);
+	    SSD1306_WriteString(line2);
+
+	    SSD1306_UpdateScreen();
+
 }
 
 static void FSM_DisplayMaskedInput(const char *title, uint8_t count)
@@ -140,6 +177,7 @@ static void FSM_DisplayMaskedInput(const char *title, uint8_t count)
     SSD1306_SetCursor(0, 2);
     SSD1306_WriteString(stars);
     SSD1306_UpdateScreen();
+
 }
 
 static void FSM_AppendDigit(char *buffer, uint8_t *index, uint8_t maxLen, char key)
@@ -300,12 +338,11 @@ void FSM_Update(char key)
             {
                 FSM_RemoveLastDigit(pinBuffer, &pinIndex);
                 FSM_DisplayMaskedInput("PIN:", pinIndex);
-
-                if (pinIndex == 0)
-                {
-                    /* puoi scegliere se restare qui o tornare a IDLE.
-                       Per ora restiamo qui, come tastiera "vuota". */
-                }
+            }else if (key == 'A')
+            {
+            	FSM_Transition(STATE_IDLE);
+            	FSM_ClearBuffer(pinBuffer, USER_PIN_LENGTH, &pinIndex);
+            	break;
             }
             else if (key == '#')
             {
@@ -369,8 +406,9 @@ void FSM_Update(char key)
                 servoIsOpen = false;
 
                 Alarm_Start(LOCKDOWN_DURATION_MS, FSM_LED_LOCKDOWN_MASK, true);
-
                 FSM_DisplayMessage("LOCKDOWN", "ADMIN WAIT");
+
+                ESP_UART_SendLockdownAlert();
             }
 
             if (HAL_GetTick() - stateEntryTime >= LOCKDOWN_DURATION_MS)
@@ -416,7 +454,7 @@ void FSM_Update(char key)
             {
                 if (strncmp(adminPinBuffer, adminPin, ADMIN_PIN_LENGTH) == 0)
                 {
-                    FSM_Transition(STATE_WAIT_ADMIN_NEW_PIN_ENTRY);
+                    FSM_Transition(STATE_WAIT_ADMIN_NEW_USER_PIN_ENTRY);
                 }
                 else
                 {
@@ -440,7 +478,7 @@ void FSM_Update(char key)
             break;
         }
 
-        case STATE_WAIT_ADMIN_NEW_PIN_ENTRY:
+        case STATE_WAIT_ADMIN_NEW_USER_PIN_ENTRY:
         {
             if (FSM_StateJustEntered())
             {
@@ -462,57 +500,67 @@ void FSM_Update(char key)
             {
                 if (newUserPinIndex == USER_PIN_LENGTH)
                 {
-                    FSM_Transition(STATE_WAIT_ADMIN_NEW_PIN_CONFIRM);
+                    FSM_Transition(STATE_WAIT_ADMIN_NEW_USER_PIN_CONFIRM);
                 }
             }
 
             break;
         }
 
-        case STATE_WAIT_ADMIN_NEW_PIN_CONFIRM:
+        case STATE_WAIT_ADMIN_NEW_USER_PIN_CONFIRM:
         {
-            if (FSM_StateJustEntered())
-            {
-                FSM_ClearBuffer(confirmPinBuffer, USER_PIN_LENGTH, &confirmPinIndex);
-                FSM_DisplayMaskedInput("CONFIRM PIN", confirmPinIndex);
-            }
+        	if (FSM_StateJustEntered())
+        	    {
+        	        FSM_ClearBuffer(confirmPinBuffer, USER_PIN_LENGTH, &confirmPinIndex);
+        	        FSM_DisplayMaskedInput("CONFIRM PIN", confirmPinIndex);
+        	    }
 
-            if (FSM_IsDigit(key))
-            {
-                FSM_AppendDigit(confirmPinBuffer, &confirmPinIndex, USER_PIN_LENGTH, key);
-                FSM_DisplayMaskedInput("CONFIRM PIN", confirmPinIndex);
-            }
-            else if (key == '*')
-            {
-                FSM_RemoveLastDigit(confirmPinBuffer, &confirmPinIndex);
-                FSM_DisplayMaskedInput("CONFIRM PIN", confirmPinIndex);
-            }
-            else if (key == '#')
-            {
-                if (confirmPinIndex == USER_PIN_LENGTH)
-                {
-                    if (strncmp(newUserPinBuffer, confirmPinBuffer, USER_PIN_LENGTH) == 0)
-                    {
-                        strncpy(userPin, newUserPinBuffer, USER_PIN_LENGTH);
-                        userPin[USER_PIN_LENGTH] = '\0';
+        	    if (FSM_IsDigit(key))
+        	    {
+        	        FSM_AppendDigit(confirmPinBuffer, &confirmPinIndex, USER_PIN_LENGTH, key);
+        	        FSM_DisplayMaskedInput("CONFIRM PIN", confirmPinIndex);
+        	    }
+        	    else if (key == '*')
+        	    {
+        	        FSM_RemoveLastDigit(confirmPinBuffer, &confirmPinIndex);
+        	        FSM_DisplayMaskedInput("CONFIRM PIN", confirmPinIndex);
+        	    }
+        	    else if (key == '#')
+        	    {
+        	        if (confirmPinIndex == USER_PIN_LENGTH)
+        	        {
+        	            if (strncmp(newUserPinBuffer, confirmPinBuffer, USER_PIN_LENGTH) == 0)
+        	            {
+        	                /* nuovo pin uguale al vecchio -> non valido */
+        	                if (strncmp(newUserPinBuffer, userPin, USER_PIN_LENGTH) == 0)
+        	                {
+        	                    FSM_DisplayMessage("PIN UNCHANGED", "TRY ANOTHER");
+        	                    FSM_SignalPinMismatch();
+        	                    HAL_Delay(NEW_PIN_NOT_VALID_TIME);
+        	                    FSM_Transition(STATE_WAIT_ADMIN_NEW_USER_PIN_ENTRY);
+        	                }
+        	                else
+        	                {
+        	                    strncpy(userPin, newUserPinBuffer, USER_PIN_LENGTH);
+        	                    userPin[USER_PIN_LENGTH] = '\0';
 
-                        pinErrorCount = 0;
-                        otpErrorCount = 0;
+        	                    pinErrorCount = 0;
+        	                    otpErrorCount = 0;
 
-                        FSM_DisplayMessage("PIN UPDATED", "");
-                        FSM_Transition(STATE_IDLE);
-                    }
-                    else
-                    {
-                        FSM_DisplayMessage("PIN MISMATCH", "");
-                        FSM_SignalPinMismatch();
-                        FSM_Transition(STATE_WAIT_ADMIN_NEW_PIN_ENTRY);
-                    }
-                }
-            }
+        	                    FSM_DisplayMessage("PIN UPDATED", "");
+        	                    FSM_Transition(STATE_IDLE);
+        	                }
+        	            }
+        	            else
+        	            {
+        	                FSM_DisplayMessage("PIN MISMATCH", "");
+        	                FSM_SignalPinMismatch();
+        	                FSM_Transition(STATE_WAIT_ADMIN_NEW_USER_PIN_ENTRY);
+        	            }
+        	        }
+        	    }
 
-            break;
-        }
+        	    break;        }
 
         /* =========================
            SECONDA META' - SCAFFOLD
@@ -520,17 +568,38 @@ void FSM_Update(char key)
 
         case STATE_SEND_OTP:
         {
+        	static uint32_t otpSendTimeStamp = 0;
             if (FSM_StateJustEntered())
             {
-                /* TODO:
-                   - inviare comando UART a ESP32
-                   - OLED: SENDING OTP
-                   - azzerare buffer OTP
-                */
+                FSM_ClearBuffer(otpBuffer, OTP_LENGTH, &otpIndex);
+                espAckReceived = false;
+                otpReceivedFromEsp = false;
+                otpValid = true;
+
+                FSM_GenerateOtp();
+                ESP_UART_SendOtp(storedOtp);
+
                 FSM_DisplayMessage("SENDING OTP", "");
+
+                otpSendTimeStamp = HAL_GetTick();
+            } else {
+            	// Patch, no ACK for OTP
+            	if ((HAL_GetTick() - otpSendTimeStamp) >= 3000)
+            	{
+            		FSM_Transition(STATE_OTP_ENTRY);
+            	}
             }
 
-            /* TODO: versione robusta con ACK */
+            /*
+            if (espAckReceived)
+            {
+                otpValid = true;
+                FSM_Transition(STATE_WAIT_OTP);
+            }
+            */
+
+
+
             break;
         }
 
@@ -538,11 +607,14 @@ void FSM_Update(char key)
         {
             if (FSM_StateJustEntered())
             {
-                /* TODO: OLED "CHECK PHONE" / "OTP SENT" */
-                FSM_DisplayMessage("CHECK PHONE", "ENTER OTP");
+                FSM_DisplayMessage("OTP SENT", "ENTER OTP");
             }
 
-            /* TODO */
+            if (otpValid)
+            {
+                FSM_Transition(STATE_OTP_ENTRY);
+            }
+
             break;
         }
 
@@ -550,11 +622,36 @@ void FSM_Update(char key)
         {
             if (FSM_StateJustEntered())
             {
-                /* TODO */
-                FSM_DisplayMessage("ENTER OTP", "");
+                FSM_ClearBuffer(otpBuffer, OTP_LENGTH, &otpIndex);
+                FSM_DisplayMaskedInput("ENTER OTP", otpIndex);
             }
 
-            /* TODO */
+            if (HAL_GetTick() - stateEntryTime >= OTP_ENTRY_TIMEOUT_MS)
+            {
+                otpValid = false;
+                FSM_ClearBuffer(otpBuffer, OTP_LENGTH, &otpIndex);
+                FSM_Transition(STATE_IDLE);
+                break;
+            }
+
+            if (FSM_IsDigit(key))
+            {
+                FSM_AppendDigit(otpBuffer, &otpIndex, OTP_LENGTH, key);
+                FSM_DisplayMaskedInput("ENTER OTP", otpIndex);
+            }
+            else if (key == '*')
+            {
+                FSM_RemoveLastDigit(otpBuffer, &otpIndex);
+                FSM_DisplayMaskedInput("ENTER OTP", otpIndex);
+            }
+            else if (key == '#')
+            {
+                if (otpIndex == OTP_LENGTH)
+                {
+                    FSM_Transition(STATE_OTP_VALIDATE);
+                }
+            }
+
             break;
         }
 
@@ -562,9 +659,24 @@ void FSM_Update(char key)
         {
             if (FSM_StateJustEntered())
             {
-                /* TODO approccio A:
-                   confronto otpBuffer vs storedOtp
-                */
+                if (otpValid && strncmp(otpBuffer, storedOtp, OTP_LENGTH) == 0)
+                {
+                    otpErrorCount = 0;
+                    FSM_Transition(STATE_OPENING);
+                }
+                else
+                {
+                    otpErrorCount++;
+
+                    if (otpErrorCount >= MAX_OTP_ERRORS)
+                    {
+                        FSM_Transition(STATE_OTP_ERROR);
+                    }
+                    else
+                    {
+                        FSM_Transition(STATE_OTP_ENTRY);
+                    }
+                }
             }
 
             break;
@@ -574,8 +686,14 @@ void FSM_Update(char key)
         {
             if (FSM_StateJustEntered())
             {
-                /* TODO */
-                FSM_DisplayMessage("WRONG OTP", "");
+                Alarm_Start(2000, FSM_LED_LOCKDOWN_MASK, true);
+                FSM_DisplayMessage("WRONG OTP", "ADMIN REQUIRED");
+                otpValid = false;
+            }
+
+            if (HAL_GetTick() - stateEntryTime >= 2000)
+            {
+                FSM_Transition(STATE_WAIT_ADMIN_PIN_ENTRY);
             }
 
             break;
@@ -585,17 +703,16 @@ void FSM_Update(char key)
         {
             if (FSM_StateJustEntered())
             {
-                /* TODO:
-                   - LED apertura lampeggiante
-                   - Servo_Open()
-                   - OLED OPENING
-                */
                 Servo_Open();
                 servoIsOpen = true;
                 FSM_DisplayMessage("OPENING", "");
             }
 
-            /* TODO */
+            if (HAL_GetTick() - stateEntryTime >= OPENING_SETTLE_MS)
+            {
+                FSM_Transition(STATE_OPEN);
+            }
+
             break;
         }
 
@@ -603,11 +720,18 @@ void FSM_Update(char key)
         {
             if (FSM_StateJustEntered())
             {
-                /* TODO */
                 FSM_DisplayMessage("OPEN", "# TO CLOSE");
             }
 
-            /* TODO */
+            if (key == '#')
+            {
+                FSM_Transition(STATE_CLOSING);
+            }
+            else if (HAL_GetTick() - stateEntryTime >= OPEN_STATE_TIMEOUT_MS)
+            {
+                FSM_Transition(STATE_CLOSING);
+            }
+
             break;
         }
 
@@ -615,13 +739,20 @@ void FSM_Update(char key)
         {
             if (FSM_StateJustEntered())
             {
-                /* TODO */
                 Servo_Close();
                 servoIsOpen = false;
                 FSM_DisplayMessage("CLOSING", "");
+
+                FSM_ResetSessionData();
+                pinErrorCount = 0;
+                otpErrorCount = 0;
             }
 
-            /* TODO */
+            if (HAL_GetTick() - stateEntryTime >= 700)
+            {
+                FSM_Transition(STATE_IDLE);
+            }
+
             break;
         }
 

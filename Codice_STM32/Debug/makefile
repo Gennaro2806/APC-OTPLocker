@@ -60,8 +60,8 @@ all: main-build
 main-build: OTP-Locker.elf secondary-outputs
 
 # Tool invocations
-OTP-Locker.elf OTP-Locker.map: $(OBJS) $(USER_OBJS) D:\University\Magistrale\Primo\ anno\APC\APC-OTPLocker\Codice_STM32\STM32F303VCTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "OTP-Locker.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\University\Magistrale\Primo anno\APC\APC-OTPLocker\Codice_STM32\STM32F303VCTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="OTP-Locker.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+OTP-Locker.elf OTP-Locker.map: $(OBJS) $(USER_OBJS) D:\Universita\APC\APC-OTPLocker\Codice_STM32\STM32F303VCTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "OTP-Locker.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"D:\Universita\APC\APC-OTPLocker\Codice_STM32\STM32F303VCTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="OTP-Locker.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

@@ -90,6 +90,9 @@ void SSD1306_WriteChar(char ch)
     if (ch < 32 || ch > 90)
         ch = 32;
 
+    if (CurrentX > 122 || CurrentY > 7)
+        return;
+
     for (uint8_t i = 0; i < 5; i++)
     {
         SSD1306_Buffer[CurrentX + (CurrentY * 128) + i] = Font5x7[(uint8_t)ch][i];
@@ -105,5 +108,51 @@ void SSD1306_WriteString(char *str)
     {
         SSD1306_WriteChar(*str);
         str++;
+    }
+}
+
+void SSD1306_DrawPixel(uint8_t x, uint8_t y, uint8_t color)
+{
+    if (x >= 128 || y >= 64)
+        return;
+
+    if (color)
+        SSD1306_Buffer[x + (y / 8) * 128] |= (1 << (y % 8));
+    else
+        SSD1306_Buffer[x + (y / 8) * 128] &= ~(1 << (y % 8));
+}
+
+void SSD1306_DrawHLine(uint8_t x, uint8_t y, uint8_t w, uint8_t color)
+{
+    for (uint8_t i = 0; i < w; i++)
+    {
+        SSD1306_DrawPixel(x + i, y, color);
+    }
+}
+
+void SSD1306_DrawVLine(uint8_t x, uint8_t y, uint8_t h, uint8_t color)
+{
+    for (uint8_t i = 0; i < h; i++)
+    {
+        SSD1306_DrawPixel(x, y + i, color);
+    }
+}
+
+void SSD1306_DrawRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color)
+{
+    if (w == 0 || h == 0)
+        return;
+
+    SSD1306_DrawHLine(x, y, w, color);
+    SSD1306_DrawHLine(x, y + h - 1, w, color);
+    SSD1306_DrawVLine(x, y, h, color);
+    SSD1306_DrawVLine(x + w - 1, y, h, color);
+}
+
+void SSD1306_FillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h, uint8_t color)
+{
+    for (uint8_t i = 0; i < h; i++)
+    {
+        SSD1306_DrawHLine(x, y + i, w, color);
     }
 }

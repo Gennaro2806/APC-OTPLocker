@@ -11,6 +11,6 @@ TASTIERINO -> primi 4 cavi sono le colonne, gli ultimi 4 le righe -> c1 su PB0, 
 
 COLLEGAMENTO ESP32 - STM32
 
-STM32 PA2 (TX) -> ESP32 RX
-STM32 PA3 (RX) -> EXP32 TX
+STM32 PA2 (TX) -> ESP32 RX 4
+STM32 PA3 (RX) -> EXP32 TX 5
 STM32 GND      -> ESP32 GND

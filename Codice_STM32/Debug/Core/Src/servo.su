@@ -1,2 +1,2 @@
-../Core/Src/servo.c:8:6:Servo_Open	4	static
-../Core/Src/servo.c:13:6:Servo_Close	4	static
+../Core/Src/servo.c:11:6:Servo_Open	16	static
+../Core/Src/servo.c:25:6:Servo_Close	16	static

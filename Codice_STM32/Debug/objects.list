@@ -1,4 +1,5 @@
 "./Core/Src/alarm.o"
+"./Core/Src/esp_uart.o"
 "./Core/Src/fonts.o"
 "./Core/Src/fsm.o"
 "./Core/Src/keypad.o"
@@ -30,4 +31,6 @@
 "./Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_spi_ex.o"
 "./Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_tim.o"
 "./Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_tim_ex.o"
+"./Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_uart.o"
+"./Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_uart_ex.o"
 "./Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_usb.o"

@@ -1,0 +1,14 @@
+../Core/Src/esp_uart.c:20:13:ESP_UART_ProcessLine	16	static
+../Core/Src/esp_uart.c:37:6:ESP_UART_Init	16	static
+../Core/Src/esp_uart.c:45:6:ESP_UART_Update	4	static
+../Core/Src/esp_uart.c:49:6:ESP_UART_SendCommand	24	static
+../Core/Src/esp_uart.c:57:6:ESP_UART_SendLockdownAlert	8	static
+../Core/Src/esp_uart.c:62:6:ESP_UART_SendOtp	48	static
+../Core/Src/esp_uart.c:69:6:ESP_UART_IsAckOtpSent	4	static
+../Core/Src/esp_uart.c:74:6:ESP_UART_IsAckLockdownSent	4	static
+../Core/Src/esp_uart.c:79:6:ESP_UART_HasOtp	4	static
+../Core/Src/esp_uart.c:84:13:ESP_UART_GetOtp	4	static
+../Core/Src/esp_uart.c:89:6:ESP_UART_ClearAckOtpSent	4	static
+../Core/Src/esp_uart.c:94:6:ESP_UART_ClearAckLockdownSent	4	static
+../Core/Src/esp_uart.c:99:6:ESP_UART_ClearOtp	8	static
+../Core/Src/esp_uart.c:105:6:HAL_UART_RxCpltCallback	16	static
