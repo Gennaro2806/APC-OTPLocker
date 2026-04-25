@@ -8,7 +8,7 @@
 // UART STM32 <-> ESP32
 // =========================
 static const int STM32_RX_PIN = 4;   // ESP32 riceve dalla STM32 TX
-static const int STM32_TX_PIN = 7;   // ESP32 trasmette verso STM32 RX
+static const int STM32_TX_PIN = 21;   // ESP32 trasmette verso STM32 RX
 
 String uartBuffer = "";
 
@@ -59,7 +59,7 @@ class CommandCallbacks : public BLECharacteristicCallbacks {
       Serial.println(value);
 
       // opzionale: inoltro del comando ricevuto dal telefono verso STM32
-      Serial1.println(value);
+      Serial1.print(value + "\n");
     }
   }
 };
@@ -68,7 +68,8 @@ class CommandCallbacks : public BLECharacteristicCallbacks {
 // Helper UART -> STM32
 // =========================
 void sendToSTM32(const String& msg) {
-  Serial1.println(msg);
+  Serial1.print(msg + "\n");
+  Serial1.flush();  // assicura che il messaggio sia inviato subito
   Serial.print("[UART->STM32] ");
   Serial.println(msg);
 }

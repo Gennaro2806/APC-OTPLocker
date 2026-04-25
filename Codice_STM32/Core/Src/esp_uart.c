@@ -19,17 +19,26 @@ static char receivedOtp[7] = {0};
 
 static void ESP_UART_ProcessLine(const char *line)
 {
-    if (strcmp(line, "ACK_OTP_SENT") == 0)
+	char clean[64];
+	strncpy(clean, line, sizeof(clean) - 1);
+	clean[sizeof(clean) - 1] = '\0';
+
+	//Remove \r if present
+	int len = strlen(clean);
+	if (len > 0 && clean[len - 1] == '\r') {
+		clean[len - 1] = '\0';
+	}
+    if (strcmp(clean, "ACK_OTP_SENT") == 0)
     {
         ackOtpSent = true;
     }
-    else if (strcmp(line, "ACK_LOCKDOWN_SENT") == 0)
+    else if (strcmp(clean, "ACK_LOCKDOWN_SENT") == 0)
     {
         ackLockdownSent = true;
     }
-    else if (strncmp(line, "OTP:", 4) == 0)
+    else if (strncmp(clean, "OTP:", 4) == 0)
     {
-        strncpy(receivedOtp, line + 4, 6);
+        strncpy(receivedOtp, clean + 4, 6);
         receivedOtp[6] = '\0';
         otpAvailable = true;
     }

@@ -564,12 +564,23 @@ void FSM_Update(char key)
                 ESP_UART_SendOtp(storedOtp);
 
                 FSM_DisplayMessage("SENDING OTP", "");
+
+                otpSendTimeStamp = HAL_GetTick();
+            } else {
+            	if (espAckReceived)
+            	{
+            		otpValid = true;
+            		FSM_Transition(STATE_WAIT_OTP);
+            	}
+            	else if ((HAL_GetTick() - otpSendTimeStamp) >= 5000)
+				{
+            		otpValid = true;
+            		FSM_DisplayMessage("OTP TIMEOUT", "CHECK PHONE");
+            		FSM_Transition(STATE_OTP_ENTRY);
+				}
             }
 
-            if (HAL_GetTick() - stateEntryTime >= OTP_SEND_SCREEN_MS)
-            {
-                FSM_Transition(STATE_OTP_ENTRY);
-            }
+
 
             break;
         }
