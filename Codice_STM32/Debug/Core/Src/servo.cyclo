@@ -1,2 +1,2 @@
-../Core/Src/servo.c:11:6:Servo_Open	2
-../Core/Src/servo.c:25:6:Servo_Close	2
+../Core/Src/servo.c:12:6:Servo_Open	2
+../Core/Src/servo.c:34:6:Servo_Close	2
