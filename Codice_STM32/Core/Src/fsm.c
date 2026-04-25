@@ -583,20 +583,18 @@ void FSM_Update(char key)
 
                 otpSendTimeStamp = HAL_GetTick();
             } else {
-            	// Patch, no ACK for OTP
-            	if ((HAL_GetTick() - otpSendTimeStamp) >= 3000)
+            	if (espAckReceived)
             	{
-            		FSM_Transition(STATE_OTP_ENTRY);
+            		otpValid = true;
+            		FSM_Transition(STATE_WAIT_OTP);
             	}
+            	else if ((HAL_GetTick() - otpSendTimeStamp) >= 5000)
+				{
+            		otpValid = true;
+            		FSM_DisplayMessage("OTP TIMEOUT", "CHECK PHONE");
+            		FSM_Transition(STATE_OTP_ENTRY);
+				}
             }
-
-            /*
-            if (espAckReceived)
-            {
-                otpValid = true;
-                FSM_Transition(STATE_WAIT_OTP);
-            }
-            */
 
 
 
