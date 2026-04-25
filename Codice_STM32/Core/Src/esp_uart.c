@@ -3,8 +3,6 @@
 #include <string.h>
 #include <stdio.h>
 #include "ssd1306.h"
-#include <stdio.h>
-#include <string.h>
 
 static UART_HandleTypeDef *esp_huart = NULL;
 
@@ -31,6 +29,7 @@ static void ESP_UART_ProcessLine(const char *line)
     if (strcmp(clean, "ACK_OTP_SENT") == 0)
     {
         ackOtpSent = true;
+        FSM_OnEspAckOtpSent();
     }
     else if (strcmp(clean, "ACK_LOCKDOWN_SENT") == 0)
     {
@@ -122,6 +121,13 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
             if (rxIndex > 0)
             {
                 rxLine[rxIndex] = '\0';
+                // DEBUG: mostra su display cosa arriva dalla ESP32
+                               SSD1306_Clear();
+                               SSD1306_SetCursor(0, 0);
+                               SSD1306_WriteString("RX ESP32:");
+                               SSD1306_SetCursor(0, 2);
+                               SSD1306_WriteString(rxLine);
+                               SSD1306_UpdateScreen();
                 ESP_UART_ProcessLine(rxLine);
                 rxIndex = 0;
                 memset(rxLine, 0, sizeof(rxLine));

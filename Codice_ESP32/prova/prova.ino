@@ -107,9 +107,9 @@ void notifyLockdown() {
 }
 
 void sendOtpToUser(const String& otp) {
-  sendBleMessage("[OTP] Il tuo codice OTP e': " + otp);
-  sendToSTM32("ACK_OTP_SENT");
+  sendToSTM32("ACK_OTP_SENT");   // ← prima l'ACK alla STM32
   sendToSTM32("OTP:" + otp);
+  sendBleMessage("[OTP] " + otp);  // ← poi il BLE
 }
 
 // =========================
@@ -196,13 +196,12 @@ void setupBLE() {
   messageCharacteristic = pService->createCharacteristic(
     MESSAGE_CHAR_UUID,
     BLECharacteristic::PROPERTY_READ |
-    BLECharacteristic::PROPERTY_NOTIFY |
-    BLECharacteristic::PROPERTY_INDICATE
+    BLECharacteristic::PROPERTY_NOTIFY
   );
 
   BLE2902 *messageDescriptor = new BLE2902();
   messageDescriptor->setNotifications(true);
-  messageDescriptor->setIndications(true);
+  messageDescriptor->setIndications(false);
   messageCharacteristic->addDescriptor(messageDescriptor);
 
   messageCharacteristic->setValue("SAFEBOX READY");

@@ -86,6 +86,9 @@ static uint8_t otpErrorCount = 0;
 /* stato porta */
 static bool servoIsOpen = false;
 
+/* Timestamp per il timeout su ACK OTP */
+static uint32_t otpSendTimeStamp = 0;
+
 /* =========================
    HELPER PRIVATI
    ========================= */
@@ -556,10 +559,6 @@ void FSM_Update(char key)
                 espAckReceived = false;
                 otpReceivedFromEsp = false;
 
-                /* bypass temporaneo ACK:
-                   la STM32 genera e considera valida la propria OTP */
-                otpValid = true;
-
                 FSM_GenerateOtp();
                 ESP_UART_SendOtp(storedOtp);
 
@@ -576,6 +575,7 @@ void FSM_Update(char key)
 				{
             		otpValid = true;
             		FSM_DisplayMessage("OTP TIMEOUT", "CHECK PHONE");
+            		HAL_Delay(3000);
             		FSM_Transition(STATE_OTP_ENTRY);
 				}
             }
