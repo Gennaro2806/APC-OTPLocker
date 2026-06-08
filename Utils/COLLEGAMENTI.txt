@@ -42,4 +42,3 @@ RIASSUNTO SCHEMATICO COMPONENTI
 │  STM32 PA3 (RX) ← → ESP32 TX (GPIO 5)          │
 │  STM32 GND      ← → ESP32 GND                  │
 └────────────────────────────────────────────────┘
-

@@ -1,0 +1,12 @@
+NOME ELEMENTO 	|	ADDRESS 1	E	ADDRESS 2		|			DA COM1 A COM4 (Campi di configurazione aggiuntivi)
+CPU		Indirizzo Stack utente	Indirizzo stack supervisore	|			Inutilizzato
+									|
+									|
+MEMORIA		Indirizzo di partenza RAM E ROM (0 se assente)		|			2: dim RAM	3: dim ROM
+									|
+									|
+BUS		Inutilizzati						|			Inutilizzato
+									|
+									|
+PIA		1: indirizzo in cui mappiamo il primo registro		|			1: Livello IRQA	2: Livello IRQB	
+		2: inutilizzato						|
