@@ -1,0 +1,138 @@
+main() {
+    // Definizione registri
+    PRB_B, PCRB_C, PRB_C, PCRB_C, BUFF
+    // Contatori
+    INDEX, N_CHAR_B, N_CHAR_C, N_MSG_B, N_MSG_C
+    // Costanti
+    N = 5
+    K = 5
+    K3 = 4
+    // Variabili di possesso
+    LOCK = 0
+    POSSESSO = -1 // 0 PER B E 1 PER C
+    F0 = 0
+    F1 = 1
+    fase = F0
+    end_B = 0
+    end_C = 0
+    // ENABLE
+    ENABLE_PIA_B()
+    ENABLE_PIA_C()
+    ENABLE_INTERRUPTS()
+    ENABLE_USERMODE()
+
+    while(true)
+}
+
+
+ISR_B() {
+    if (TAS(lock)) {
+        switch(fase) {
+            case F0:
+                if (end_B != 1) {
+                    BUFF[INDEX] = PRB_B
+                    INDEX++
+                    N_CHAR_B++
+
+                    if (N_CHAR_B == N) {
+                        //Ho ricevuto un altro msg
+                        N_CHAR_B = 0
+                        N_MSG_B++
+
+                        if (N_MSG_B == K) {
+                            N_MSG_B = 0
+                            end_B = 1
+
+                            if (N_MSG_C == K) {
+                                fase = F1
+                            }
+                        }
+                    }
+                }
+            case F1:
+                // Qui posso ricevere max K-1 = K3 
+                // messaggi da ogni periferica senza sovrapposizione
+                // uso la variabile di possesso
+                if (possesso == -1) {
+                    // Posso ricevere solo se possesso vale -1, ovvero è libero
+                    possesso = 0 //B
+                    BUFF[INDEX] = PRB_B
+                    INDEX++
+                    N_CHAR_B++
+
+                    if (N_MSG_B == N) {
+                        N_CHAR_B = 0
+                        N_MSG_B ++
+
+                        if (N_MSG_B == K3) {
+                            N_MSG_B = 0
+                            disable_PIA_B()
+                        }
+
+                        if ((N_MSG_B + N_MSG_C) == K) {
+                            disable_PIA_B()
+                            disable_PIA_C()
+                            N_MSG_B = 0
+                            N_MSG_C = 0
+                        }
+                    }
+                }
+                possesso = -1
+        }
+    }
+
+    lock = 0
+}
+
+ISR_C() {
+    if (TAS(lock)) {
+        switch (fase):
+            case F0:
+                if(end_C != 1) {
+                    BUFF[INDEX] = PRB_C
+                    INDEX++
+                    N_CHAR_C++
+
+                    if (N_CHAR_C == N) {
+                        N_CHAR_C = 0
+                        N_MSG_C ++
+
+                        if (N_MSG_C == K) {
+                            N_MSG_C = 0
+                            end_C = 1
+
+                            if (N_MSG_B == K) {
+                                fase = F1
+                            }
+                        }
+                    }
+                }
+            case F1:
+                if (possesso == -1) {
+                    possesso = 1
+                    BUFF[INDEX] = PRB_C
+                    INDEX++
+                    N_CHAR_C ++
+
+                    if (N_CHAR_C == K) {
+                        N_MSG_C ++
+                        N_CHAR_C = 0
+
+                        if (N_MSG_C == K3) {
+                            N_MSG_C = 0
+                            disable_PIA_C()
+                        }
+
+                        if ((N_MSG_B + N_MSG_C) == K) {
+                            N_MSG_C = 0
+                            N_MSG_B = 0
+                            disable_PIA_B()
+                            disable_PIA_C()
+                        }
+                    }
+                }
+
+                possesso = -1
+    }
+    lock = 0
+}
