@@ -1,0 +1,61 @@
+* --- AREA DATI NODO C ---*
+        ORG $8000
+DIM     EQU     5
+MES     DC.B    'C', '2', '-', '1', '0'
+
+CNTB    DC.W    0
+
+PRAC    EQU     $2006
+PCRAC    EQU     $2007
+WAIT_ITER   EQU 15
+
+
+* --- AREA MAIN B --- *
+        ORG     $8200
+
+INIT    JSR     STARTUP
+
+        * PREPARA REGISTRI AUSILIARI
+        MOVE.W  #DIM, D3
+        MOVEA.L #PRAC, A0
+        MOVEA.L #MES, A1
+        MOVE.W  #1, CNTB
+        MOVE.W  CNTB, D0
+
+        * ABILITA INTERRUPT
+        MOVE.W  SR, D1
+        ANDI.W  #D8FF, D1
+        MOVE.W  D1, SR
+
+        * INVIO PRIMO CARATTERE PER INNESCARE HARDWARE
+        MOVE.B  (A0), D2 * LETTURA FITTIZIA
+        MOVE.B  (A1), (A0)
+    
+LOOP    JMP     LOOP
+
+* --- INIZIALIZZA PIA --- *
+STARTUP:
+    MOVE.B  #0, PCRAC
+    MOVE.B  #FF, PRAC
+    MOVE.B  #00100101, PCRAC
+
+* --- ISR B --- *
+    ORG     $8700
+
+INT4    MOVE.B  (A0), D2    * LETTURA FITTIZIA
+        MOVE.B  (A1, D0), (A0) * INVIA PROSSIMO CHAR
+        ADDI.W  #1, D0
+
+        * CONTROLLO BUFFER CIRCOLARE
+        CMP.W   D3, D0 * VERIFICA SE HO INVIATO TUTTO IL MSG
+        BNE     EI4    * SE NO, ESCI DALL'INTERRUPT
+        MOVE.W  #0, D0 * SE SI, AZZERA IL CONTATORE E POI ESCI
+
+        * Ciclo di rallentamento per non inondare il Nodo A
+		MOVE.W	#0,D7
+WLOOP   ADDI.W 	#1,D7
+	 	CMP.W	#WAIT_ITER,D7
+	 	BNE	WLOOP
+
+EI4     RTE
+        END INIT

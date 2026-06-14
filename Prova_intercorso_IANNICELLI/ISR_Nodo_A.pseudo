@@ -64,16 +64,16 @@ ISR_B() {
                         N_CHAR_B = 0
                         N_MSG_B ++
 
-                        if (N_MSG_B == K3) {
-                            N_MSG_B = 0
-                            disable_PIA_B()
-                        }
-
                         if ((N_MSG_B + N_MSG_C) == K) {
                             disable_PIA_B()
                             disable_PIA_C()
                             N_MSG_B = 0
                             N_MSG_C = 0
+                        }
+
+                        if (N_MSG_B == K3) {
+                            N_MSG_B = 0
+                            disable_PIA_B()
                         }
                     }
                 }
@@ -130,9 +130,9 @@ ISR_C() {
                             disable_PIA_C()
                         }
                     }
+                    possesso = -1
                 }
 
-                possesso = -1
     }
     lock = 0
 }
