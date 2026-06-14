@@ -1,0 +1,56 @@
+00000000                                     1  * --- AREA DATI NODO B ---
+00008000                                     2  		ORG	$8000
+00008000  =00000004                          3  DIM 		EQU 	4
+00008000  42 31 2D 31                        4  MES		DC.B	'B','1','-','1'	* Dati in ASCII per leggerli nel Nodo A
+00008004                                     5  
+00008004  0000                               6  CNTB		DC.W	0
+00008006                                     7  
+00008006  =00002006                          8  PIADB		EQU	$2006
+00008006  =00002007                          9  PIACB		EQU	$2007
+00008006                                    10  
+00008006                                    11  * --- MAIN PROGRAM ---
+00008200                                    12  		ORG	$8200
+00008200  4EB9 00008236                     13  INIT		JSR	INIZIALIZZA
+00008206                                    14  	
+00008206                                    15  		* Preparazione dei registri (Rimangono in vita per tutta l'esecuzione)
+00008206  363C 0004                         16  		MOVE.W 	#DIM,D3	
+0000820A  207C 00002006                     17  		MOVEA.L	#PIADB,A0
+00008210  227C 00008000                     18  		MOVEA.L #MES,A1
+00008216  33FC 0001 00008004                19  		MOVE.W 	#1,CNTB 	* Inizia scrivendo 1 nel contatore di bytes		
+0000821E  3039 00008004                     20  		MOVE.W	CNTB,D0		* D0 mantiene sempre l'indice (1)
+00008224                                    21  	
+00008224                                    22  		* Abilitazione Interruzioni
+00008224  40C1                              23  		MOVE.W	SR,D1
+00008226  0241 D8FF                         24  		ANDI.W	#$D8FF,D1	
+0000822A  46C1                              25  		MOVE.W	D1,SR
+0000822C                                    26  		
+0000822C                                    27  		* Kick-start: Invia il primo carattere per innescare l'hardware
+0000822C  1410                              28  		MOVE.B	(A0),D2		* Effettua la lettura fittizia (Pulisce la PIA)
+0000822E  1091                              29  		MOVE.B 	(A1),(A0)	* Scrive MES[0] nella PIA
+00008230                                    30  
+00008230  4EF9 00008230                     31  LOOP		JMP	LOOP
+00008236                                    32  
+00008236                                    33  * --- INIZIALIZZAZIONE PIA ---
+00008236                                    34  INIZIALIZZA	
+00008236  11FC 0000 2007                    35  		MOVE.B	#0,PIACB
+0000823C  11FC 00FF 2006                    36  		MOVE.B	#$FF,PIADB
+00008242  11FC 0025 2007                    37  		MOVE.B	#%00100101,PIACB
+00008248  4E75                              38  		RTS
+0000824A                                    39  
+0000824A                                    40  * --- ISR (Interruzione mappata a $70) ---
+00008800                                    41  		ORG	$8800
+00008800  1410                              42  INT4		MOVE.B 	(A0),D2		* Lettura fittizia per spegnere l'interrupt
+00008802  10B1 0000                         43  		MOVE.B 	(A1,D0),(A0)	* Invia il carattere successivo: MES[D0]
+00008806  5240                              44  		ADDI.W 	#1,D0		* Incrementa l'indice
+00008808                                    45  		
+00008808                                    46  		* Controllo Buffer Circolare
+00008808  B043                              47  		CMP.W	D3,D0		* Siamo arrivati alla fine del messaggio (4)?
+0000880A  6600 0006                         48  		BNE	EI4		* Se no, esce normalmente
+0000880E  303C 0000                         49  		MOVE.W	#0,D0		* Se si, AZZERA D0 (Ricomincia dall'inizio!)
+00008812                                    50  
+00008812  4E73                              51  EI4 		RTE
+00008814                                    52  
+00008814                                    53  		END	INIT
+
+No errors detected
+No warnings generated

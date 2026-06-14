@@ -1,471 +1,296 @@
-*-------------AREA DATI--------------*
+*	AREA DATI 
+		ORG 		$8000
+N		EQU		4 
+K 		EQU 		5 
+NONE 		EQU		0 
+B	 	EQU 		1 
+C		EQU		2
+PIADA_B	EQU		$2004
+PIACA_B	EQU		$2005
+PIADA_C	EQU		$2006
+PIACA_C	EQU		$2007
 
-ORG $8000
-PRA_B       EQU     $2004
-PCRA_B       EQU     $2005
-PRA_C       EQU     $2008
-PCRA_C      EQU     $2009
-N           EQU     5
-K           EQU     5
-K3          EQU     4
-BUFF        DS.B    N
-INDEX       DC.W    #0
-N_CHAR_B    DC.W    #0
-N_MSG_B     DC.W    #0
-N_CHAR_C    DC.W    #0
-N_MSG_C     DC.W    #0
-LOCK        DC.W    #0
-POSSESSO    DC.W    #2  *2 NESSUNO, 0 -> B, 1 -> C
-F0          EQU     0
-F1          EQU     1
-FASE        DC.W    #0
-END_B       DC.W    #0
-END_C       DC.W    #0
-
-
-*-------------AREA MAIN--------------*
-ORG $8200
-
-MAIN        JSR     INIT
-LOOP        JMP     LOOP
-
-INIT:
-        * SETUP PIA B
-        MOVE.W      #0, PCRA_B
-        MOVE.W      #0, PRA_B
-        MOVE.W      #00100101,  PCRA_B
-
-        * SETUP PIA C
-        MOVE.W      #0, PCRA_C
-        MOVE.W      #0, PRA_C
-        MOVE.W      #0, PCRA_C
-
-        * ENABLE INTERRUPTS E USERMODE
-        MOVE.W      SR, D0
-        ANDI.W      #D8FF, D0
-        MOVE.W      D0, SR
-
-        RTS
-
-*-------------ISR B--------------*
-ORG $8700
-        MOVEM.L     A0-A3/D0-D3, -(A7)
-        MOVEA.W     BUFF, A0
-        MOVEA.W     PRA_B, A1
-        MOVEA.W     PCRA_B, A2
-        MOVEA.W     PCRA_C, A3
-        MOVE.W      INDEX, D0
-        MOVE.W      N_CHAR_B, D1
-        MOVE.W      N_MSG_B, D2
-        MOVE.W      N_MSG_C, D3
-        TAS         LOCK
-        BNE         RIPRISTINA_REGISTRI
-        CMP.W       F0, FASE
-        BEQ         FASE_1
-        CMP.W       F1, FASE
-        BEQ         FASE_2
-        BRA         RIPRISTINA_LOCK
-
-FASE_1:
-        CMP.W       #1, END_B
-        BEQ         RIPRISTINA_LOCK
-        BRA         RICEVI_CHAR_1
-
-RICEVI_CHAR_1:
-        MOVE.B      (A1), (A0, D0.W)
-        ADDI.W      #1, D0
-        ADDI.W      #1, D1
-        CMP.W       N,  D1
-        BEQ         RICEVI_MSG_1
-        BRA         RIPRISTINA_LOCK
-
-RICEVI_MSG_1:
-        MOVE.W      #0, D1
-        ADDI.W      #1, D2
-
-        CMP.W       K,  D2
-        BEQ         FINE_B_1
-        BRA         RIPRISTINA_LOCK
-    
-FINE_B_1:
-        MOVE.W      #0, D2
-        MOVE.W      #1, END_B
-
-        CMP.W       K,  D3
-        BEQ         VAI_FASE_2
-        BRA         RIPRISTINA_LOCK
-
-VAI_FASE_2:
-        MOVE.W      F1, FASE
-        BRA         RIPRISTINA_LOCK
-
-FASE_2:
-        CMP.W       #-1, POSSESSO
-        BEQ         RICEVI_CHAR_2
-        BRA         RILASCIA_POSSESSO
-
-RICEVI_CHAR_2:
-        MOVE.W      #0, POSSESSO
-        MOVE.W      (A1), (A0, D0.W)
-        ADDI.W      #1, D0
-        ADDI.W      #1, D1
-
-        CMP.W       N,  D2
-        BEQ         RICEVI_MSG_2
-        BRA         RILASCIA_POSSESSO
-
-RICEVI_MSG_2:
-        MOVE.W      #0, D1
-        ADDI.W      #1, D2
-
-        ADDI.W      D2, D3
-        CMP.W       K, D3
-        BEQ         DISABLE_PIA_C
-        CMP.W       K3, D2
-        BEQ         DISABLE_PIA_B
-        BRA         RILASCIA_POSSESSO
-    
-DISABLE_PIA_C:
-        MOVE.W      #0, D3
-        MOVEA.W     #0, A3
-DISABLE_PIA_B:
-        MOVE.W      #0, D2
-        MOVEA.W     #0, A2
-RILASCIA_POSSESSO:
-        MOVE.W      #-1, POSSESSO
-    
-RIPRISTINA_LOCK:
-        MOVE.W      #0, LOCK
-RIPRISTINA_REGISTRI:
-        MOVE.W      D3, N_MSG_C
-        MOVE.W      D2, N_MSG_B
-        MOVE.W      D1, N_CHAR_B
-        MOVE.W      D0, INDEX
-        MOVEA.W     A3, PCRA_C
-        MOVEA.W     A2, PCRA_B
-        MOVEA.W     A1, PRA_B
-        MOVEA.W     A0, BUFF
-        MOVEM.L     A0-A3/D0-D3, (A7)+
-
-*-------------ISR C--------------*
-        ORG         $8900
-        MOVEM.L         A0-A3/D0-D3, -(A7)
-        MOVEA.W         BUFF, A0
-        MOVEA.W         PRB_C, A1
-        MOVEA.W         PCRB_C, A2
-        MOVEA.W         PCRB_B, A3
-        MOVE.W          INDEX, D0
-        MOVE.W          N_CHAR_C, D1
-        MOVE.W          N_MSG_C, D2
-        MOVE.W          N_MSG_B, D3
-        TAS             LOCK
-        BNE             RIPRISTINA_REGISTRI_C
-        CMP.W           F0, FASE
-        BEQ             RICEVI_CHAR_1_C
-        CMP.W           F1, FASE
-        BEQ             RICEVI_CHAR_2_C
-        BRA             RIMUOVI_LOCK
-RICEVI_CHAR_1_C:
-        CMP.W           #1, END_C
-        BEQ             RIMUOVI_LOCK
-        MOVE.B          (A1), (A0, D0.W)
-        ADDI.W          #1, D0
-        ADDI.W          #1, D1
-        CMP.W           N, D1
-        BNE             RIMUOVI_LOCK
-        BRA             RICEVI_MSG_1_C
-
-RICEVI_MSG_1_C:
-        MOVE.W          #0, D1
-        ADDI.W          #1, D2
-        CMP.W           K, D2
-        BEQ             FINE_C_1
-        BRA             RIMUOVI_LOCK
-
-FINE_C_1:
-        MOVE.W          #0, D2
-        MOVE.W          #1, END_C
-        CMP.W           K, D3
-        BEQ             VAI_FASE_2_C
-        BRA             RIMUOVI_LOCK
-
-VAI_FASE_2_C:
-        MOVE.W          F1, FASE
-        BRA             RIMUOVI_LOCK
-RICEVI_CHAR_2_C:
-        CMP.W           #-1, POSSESSO
-        BEQ             RICEVI_CHAR_FASE_2_C
-        BRA             RIMUOVI_LOCK
-RICEVI_CHAR_FASE_2_C:
-        MOVE.W          #1, POSSESSO
-        MOVE.B          (A1), (A0, D0.W)
-        ADDI.W          #1, D0
-        ADDI.W          #1, D1
-        CMP.W           K, D1
-        BNE             RILASCIA_POSSESSO
-        ADDI.W          #1, D2
-        MOVE.W          #0, D1
-        ADDI.W          D2, D3
-        CMP.W           K, D3
-        BEQ             DISABLE_PIA_B_2
-        CMP.W           K3, D2
-        BEQ             DISABLE_PIA_C_2
-        BRA             RILASCIA_POSSESSO
-
-DISABLE_PIA_B_2:
-        MOVE.W          #0, D3
-        MOVE.W          #0, A3
-DISABLE_PIA_C_2:
-        MOVE.W          #0, D2
-        MOVE.W          #0, A2
-RILASCIA_POSSESSO:
-        MOVE.W          #-1, POSSESSO
-
-RIMUOVI_LOCK:
-        MOVE.W          #0, LOCK
-
-RIPRISTINA_REGISTRI_C:
-        MOVE.W          D3, N_MSG_B
-        MOVE.W          D2, N_MSG_C
-        MOVE.W          D1, N_CHAR_C
-        MOVE.W          D0, INDEX
-        MOVEA.W         A3, PCRB_B
-        MOVEA.W         A2, PCRB_C
-        MOVEA.W         A1, PRB_C
-        MOVEA.W         A0, BUFF
-        *-------------AREA DATI--------------*
-
-ORG $8000
-PRA_B       EQU     $2004
-PCRA_B       EQU     $2005
-PRA_C       EQU     $2008
-PCRA_C      EQU     $2009
-N           EQU     5
-K           EQU     5
-K3          EQU     4
-BUFF        DS.B    N
-INDEX       DC.W    #0
-N_CHAR_B    DC.W    #0
-N_MSG_B     DC.W    #0
-N_CHAR_C    DC.W    #0
-N_MSG_C     DC.W    #0
-LOCK        DC.W    #0
-POSSESSO    DC.W    #2  *2 NESSUNO, 0 -> B, 1 -> C
-F0          EQU     0
-F1          EQU     1
-FASE        DC.W    #0
-END_B       DC.W    #0
-END_C       DC.W    #0
+FASE		DC.W		0
+LOCK		DC.W		0
+POSS		DC.W		NONE
+BUFFB		DS.B		N 
+BUFFC		DS.B		N 
+CHARB		DC.W		0
+MSGB		DC.W		0 
+COUNTB	DC.W		0
+FINEB		DC.W		0
+PENDINGB	DC.W		0
+CHARC		DC.W		0
+MSGC		DC.W		0
+COUNTC	DC.W		0
+FINEC		DC.W		0
+PENDINGC	DC.W		0
+MSG		DC.W		0
 
 
-*-------------AREA MAIN--------------*
-ORG $8200
+*	MAIN
+		ORG		$8200
+MAIN		JSR		INIT
+		MOVE.W	SR,D0
+		ANDI.W	#$D8FF,D0
+		MOVE.W	D0,SR
+LOOP		JMP		LOOP
 
-MAIN        JSR     INIT
-LOOP        JMP     LOOP
+INIT		CLR.B		PIACA_B
+		CLR.B		PIADA_B
+		MOVE.B	#%00100101,PIACA_B
+		CLR.B		PIACA_C
+		CLR.B		PIADA_C
+		MOVE.B	#%00100101,PIACA_C
+		RTS
 
-INIT:
-        * SETUP PIA B
-        MOVE.W      #0, PCRA_B
-        MOVE.W      #0, PRA_B
-        MOVE.W      #00100101,  PCRA_B
+***	-----	ISR_B		------***
+		ORG		$8700
+ISRB		MOVEM.L	D0-D4/A0-A1,-(A7)
 
-        * SETUP PIA C
-        MOVE.W      #0, PCRA_C
-        MOVE.W      #0, PRA_C
-        MOVE.W      #0, PCRA_C
+**PER TERMIANRE IL PROCESSO
+		CMP.W	#2,FASE
+		BEQ		STOPB
 
-        * ENABLE INTERRUPTS E USERMODE
-        MOVE.W      SR, D0
-        ANDI.W      #D8FF, D0
-        MOVE.W      D0, SR
+		MOVE.W	#1,PENDINGB
 
-        RTS
+		TST.W		FASE
+		BNE		CKF2
+		
+		CMP.W	#1,FINEB
+		BEQ		IGNB
 
-*-------------ISR B--------------*
-ORG $8700
-        MOVEM.L     A0-A3/D0-D3, -(A7)
-        MOVEA.W     BUFF, A0
-        MOVEA.W     PRA_B, A1
-        MOVEA.W     PCRA_B, A2
-        MOVEA.W     PCRA_C, A3
-        MOVE.W      INDEX, D0
-        MOVE.W      N_CHAR_B, D1
-        MOVE.W      N_MSG_B, D2
-        MOVE.W      N_MSG_C, D3
-        TAS         LOCK
-        BNE         RIPRISTINA_REGISTRI
-        CMP.W       F0, FASE
-        BEQ         FASE_1
-        CMP.W       F1, FASE
-        BEQ         FASE_2
-        BRA         RIPRISTINA_LOCK
+ORJMP		LEA		BUFFB,A0
+		MOVE.W	CHARB,D0
+		
+		MOVE.B	PIADA_B,(A0,D0)
+		ADDQ.W	#1,D0
+		MOVE.W	D0,CHARB
+		CLR.W		PENDINGB
+		CMP.W		#N,D0
+		BNE		EXIT
+		MOVE.W	MSGB,D1
+		ADDQ.W	#1,D1
+		MOVE.W	D1,MSGB
+		CLR.W		CHARB
+		CMP.W	#K,MSGB
+		BNE		EXIT
+		MOVE.W	#1,FINEB
+		BRA		RECC
 
-FASE_1:
-        CMP.W       #1, END_B
-        BEQ         RIPRISTINA_LOCK
-        BRA         RICEVI_CHAR_1
+IGNB		MOVE.B	PIADA_B,D0
+		CLR.W		PENDINGB
+		BRA		ENDMSG
 
-RICEVI_CHAR_1:
-        MOVE.B      (A1), (A0, D0.W)
-        ADDI.W      #1, D0
-        ADDI.W      #1, D1
-        CMP.W       N,  D1
-        BEQ         RICEVI_MSG_1
-        BRA         RIPRISTINA_LOCK
+** RECUPERO DEL CARATTERE
+RECC		CMP.W 	#1,PENDINGC
+		BNE		ENDMSG
+		CMP.W	#1,FINEC
+		BNE		ENDMSG
+		MOVE.W	CHARC,D2
+		ADDQ.W	#1,D2
+		CLR.W		PENDINGC
+		MOVE.W	D2,CHARC
+		SUBQ.W	#1,D2
+		LEA		BUFFC,A0
+		MOVE.B	PIADA_C,(A0,D2)
+	
+ENDMSG		CMP.W		#1,FINEC
+		BNE		EXIT
+		MOVE.W	FASE,D3
+		ADDQ.W	#1,D3
+		MOVE.W	D3,FASE
+		BRA		EXIT
 
-RICEVI_MSG_1:
-        MOVE.W      #0, D1
-        ADDI.W      #1, D2
+FASE2		CMP.W	#NONE,POSS
+		BNE		CKPOSS
+		TAS		LOCK
+		BNE		EXIT
+		CMP.W	#NONE,POSS
+		BNE		RELEASE
+		MOVE.W	#B,POSS
+		
+RELEASE	CLR.W		LOCK
+		BRA		CKPOSS
 
-        CMP.W       K,  D2
-        BEQ         FINE_B_1
-        BRA         RIPRISTINA_LOCK
-    
-FINE_B_1:
-        MOVE.W      #0, D2
-        MOVE.W      #1, END_B
+STOPB		MOVE.B	PIADA_B,D0
+		BRA		EXIT
+		
+EXIT		MOVEM.L	(A7)+,D0-D4/A0-A1
+		RTE
 
-        CMP.W       K,  D3
-        BEQ         VAI_FASE_2
-        BRA         RIPRISTINA_LOCK
+CKPOSS	CMP.W		#B,POSS
+		BNE		EXIT
+		CMP.W	#1,PENDINGB
+		BNE		EXIT
+		LEA		BUFFB,A0
+		MOVE.W	CHARB,D0
+		MOVE.W	MSG,D1
+		MOVE.W	COUNTB,D2
+		MOVE.B	PIADA_B,(A0,D0)
+		CLR.W		PENDINGB
+		ADDQ.W	#1,D0
+		MOVE.W	D0,CHARB
+		CMP.W	#N,CHARB
+		BNE		EXIT
+		ADDQ.W	#1,D1
+		MOVE.W	D1,MSG
+		CLR.W		CHARB
+		ADDQ.W	#1,D2
+		MOVE.W	D2,COUNTB
 
-VAI_FASE_2:
-        MOVE.W      F1, FASE
-        BRA         RIPRISTINA_LOCK
+		CMP.W	#K,D1
+		BNE		CNGPOSS
+		MOVE.W	#2,FASE
+		BRA		EXIT
+		
+CNGPOSS		CMP.W	#(K-1),D2
+		BNE		ELSEPOSS
+		MOVE.W	#C,POSS
+		BRA		REC
 
-FASE_2:
-        CMP.W       #-1, POSSESSO
-        BEQ         RICEVI_CHAR_2
-        BRA         RILASCIA_POSSESSO
+ELSEPOSS	CLR.W		POSS
 
-RICEVI_CHAR_2:
-        MOVE.W      #0, POSSESSO
-        MOVE.W      (A1), (A0, D0.W)
-        ADDI.W      #1, D0
-        ADDI.W      #1, D1
 
-        CMP.W       N,  D2
-        BEQ         RICEVI_MSG_2
-        BRA         RILASCIA_POSSESSO
+REC		CMP.W		#1,PENDINGC
+		BNE		EXIT
+		MOVE.W	#C,POSS
+		CLR.W		PENDINGC
+		MOVE.W	CHARC,D3
+		ADD.W		#1,D3
+		MOVE.W	D3,CHARC
+		SUB.W		#1,D3
+		LEA		BUFFC,A1
+		MOVE.B	PIADA_C,(A1,D3)
+		BRA		EXIT
 
-RICEVI_MSG_2:
-        MOVE.W      #0, D1
-        ADDI.W      #1, D2
+CKF2		JMP		FASE2
 
-        ADDI.W      D2, D3
-        CMP.W       K, D3
-        BEQ         DISABLE_PIA_C
-        CMP.W       K3, D2
-        BEQ         DISABLE_PIA_B
-        BRA         RILASCIA_POSSESSO
-    
-DISABLE_PIA_C:
-        MOVE.W      #0, D3
-        MOVEA.W     #0, A3
-DISABLE_PIA_B:
-        MOVE.W      #0, D2
-        MOVEA.W     #0, A2
-RILASCIA_POSSESSO:
-        MOVE.W      #-1, POSSESSO
-    
-RIPRISTINA_LOCK:
-        MOVE.W      #0, LOCK
-RIPRISTINA_REGISTRI:
-        MOVE.W      D3, N_MSG_C
-        MOVE.W      D2, N_MSG_B
-        MOVE.W      D1, N_CHAR_B
-        MOVE.W      D0, INDEX
-        MOVEA.W     A3, PCRA_C
-        MOVEA.W     A2, PCRA_B
-        MOVEA.W     A1, PRA_B
-        MOVEA.W     A0, BUFF
-        MOVEM.L     A0-A3/D0-D3, (A7)+
+***	-----	ISR_C		------***
+		ORG		$8900
+ISRC		MOVEM.L	D0-D4/A0-A1,-(A7)
+**PER FINIRE PROCESSO
+		CMP.W	#2,FASE
+		BEQ		STOPC
 
-*-------------ISR C--------------*
-        ORG         $8900
-        MOVEM.L         A0-A3/D0-D3, -(A7)
-        MOVEA.W         BUFF, A0
-        MOVEA.W         PRB_C, A1
-        MOVEA.W         PCRB_C, A2
-        MOVEA.W         PCRB_B, A3
-        MOVE.W          INDEX, D0
-        MOVE.W          N_CHAR_C, D1
-        MOVE.W          N_MSG_C, D2
-        MOVE.W          N_MSG_B, D3
-        TAS             LOCK
-        BNE             RIPRISTINA_REGISTRI_C
-        CMP.W           F0, FASE
-        BEQ             RICEVI_CHAR_1_C
-        CMP.W           F1, FASE
-        BEQ             RICEVI_CHAR_2_C
-        BRA             RIMUOVI_LOCK
-RICEVI_CHAR_1_C:
-        CMP.W           #1, END_C
-        BEQ             RIMUOVI_LOCK
-        MOVE.B          (A1), (A0, D0.W)
-        ADDI.W          #1, D0
-        ADDI.W          #1, D1
-        CMP.W           N, D1
-        BNE             RIMUOVI_LOCK
-        BRA             RICEVI_MSG_1_C
+		MOVE.W	#1,PENDINGC
+		TST.W		FASE
+		BNE		CF2C
 
-RICEVI_MSG_1_C:
-        MOVE.W          #0, D1
-        ADDI.W          #1, D2
-        CMP.W           K, D2
-        BEQ             FINE_C_1
-        BRA             RIMUOVI_LOCK
+		CMP.W	#1,FINEC
+		BEQ		IGNC
 
-FINE_C_1:
-        MOVE.W          #0, D2
-        MOVE.W          #1, END_C
-        CMP.W           K, D3
-        BEQ             VAI_FASE_2_C
-        BRA             RIMUOVI_LOCK
+ORJMPC	LEA		BUFFC,A0
+		MOVE.W	CHARC,D0
 
-VAI_FASE_2_C:
-        MOVE.W          F1, FASE
-        BRA             RIMUOVI_LOCK
-RICEVI_CHAR_2_C:
-        CMP.W           #-1, POSSESSO
-        BEQ             RICEVI_CHAR_FASE_2_C
-        BRA             RIMUOVI_LOCK
-RICEVI_CHAR_FASE_2_C:
-        MOVE.W          #1, POSSESSO
-        MOVE.B          (A1), (A0, D0.W)
-        ADDI.W          #1, D0
-        ADDI.W          #1, D1
-        CMP.W           K, D1
-        BNE             RILASCIA_POSSESSO
-        ADDI.W          #1, D2
-        MOVE.W          #0, D1
-        ADDI.W          D2, D3
-        CMP.W           K, D3
-        BEQ             DISABLE_PIA_B_2
-        CMP.W           K3, D2
-        BEQ             DISABLE_PIA_C_2
-        BRA             RILASCIA_POSSESSO
+		MOVE.B	PIADA_C,(A0,D0)
+		ADDQ.W	#1,D0
+		MOVE.W	D0,CHARC
+		CLR.W		PENDINGC
+		CMP.W		#N,D0
+		BNE		EXITC
+		MOVE.W	MSGC,D1
+		ADDQ.W	#1,D1
+		MOVE.W	D1,MSGC
+		CLR.W		CHARC
+		CMP.W	#K,D1
+		BNE		EXITC
+		
+		MOVE.W	#1,FINEC
+		BRA		RECB
+IGNC		MOVE.B	PIADA_C,D0
+		CLR.W		PENDINGC
+		BRA		ENDMSGC
 
-DISABLE_PIA_B_2:
-        MOVE.W          #0, D3
-        MOVE.W          #0, A3
-DISABLE_PIA_C_2:
-        MOVE.W          #0, D2
-        MOVE.W          #0, A2
-RILASCIA_POSSESSO:
-        MOVE.W          #-1, POSSESSO
+RECB		CMP.W	#1,PENDINGB
+		BNE		ENDMSGC
+		CMP.W	#1,FINEB
+		BNE		ENDMSGC
+		MOVE.W	CHARB,D2
+		ADDQ.W	#1,D2
+		CLR.W		PENDINGB
+		MOVE.W	D2,CHARB
+		SUBQ.W	#1,D2	
+		LEA		BUFFB,A0
+		MOVE.B	PIADA_B,(A0,D2)	
 
-RIMUOVI_LOCK:
-        MOVE.W          #0, LOCK
+ENDMSGC	CMP.W		#1,FINEB
+		BNE		EXITC
+		MOVE.W	FASE,D3
+		ADDQ.W	#1,D3
+		MOVE.W	D3,FASE
+		BRA		EXITC
 
-RIPRISTINA_REGISTRI_C:
-        MOVE.W          D3, N_MSG_B
-        MOVE.W          D2, N_MSG_C
-        MOVE.W          D1, N_CHAR_C
-        MOVE.W          D0, INDEX
-        MOVEA.W         A3, PCRB_B
-        MOVEA.W         A2, PCRB_C
-        MOVEA.W         A1, PRB_C
-        MOVEA.W         A0, BUFF
-        
+FASE2C	CMP.W	#NONE,POSS
+		BNE		CKPOSSC
+		TAS		LOCK
+		BNE		EXITC
+		CMP.W		#NONE,POSS
+		BNE		RELEASEC
+		MOVE.W	#C,POSS
+		
+RELEASEC	CLR.W		LOCK
+		BRA		CKPOSSC
+
+STOPC		MOVE.B	PIADA_C,D0
+		BRA		EXITC
+
+EXITC		MOVEM.L	(A7)+,D0-D4/A0-A1
+		RTE
+
+CKPOSSC	CMP.W		#C,POSS
+		BNE		EXITC
+		CMP.W	#1,PENDINGC
+		BNE		EXITC
+		LEA		BUFFC,A0
+		MOVE.W	CHARC,D0
+		MOVE.W	MSG,D1
+		MOVE.W	COUNTC,D2
+		MOVE.B	PIADA_C,(A0,D0)
+		CLR.W		PENDINGC
+		ADDQ.W	#1,D0
+		MOVE.W	D0,CHARC
+		CMP.W		#N,D0
+		BNE		EXITC
+		ADDQ.W	#1,D1
+		MOVE.W	D1,MSG
+		CLR.W		CHARC
+		ADDQ.W	#1,D2
+		MOVE.W	D2,COUNTC
+		
+		CMP.W	#K,D1
+		BNE		CNGPOSC
+		MOVE.W	#2,FASE
+		BRA		EXITC
+
+CNGPOSC	CMP.W	#(K-1),D2
+		BNE		ELSEPOSC
+		MOVE.W	#B,POSS
+		BRA		RCVC
+
+ELSEPOSC	CLR.W		POSS
+
+
+RCVC		CMP.W		#1,PENDINGB
+		BNE		EXITC
+		MOVE.W	#B,POSS
+		CLR.W		PENDINGB
+		MOVE.W	CHARB,D3
+		ADDQ.W	#1,D3
+		MOVE.W	D3,CHARB
+		SUBQ.W	#1,D3
+		LEA		BUFFB,A1
+		MOVE.B	PIADA_B,(A1,D3)
+		BRA		EXITC
+
+CF2C		JMP		FASE2C
+		
+		END		MAIN
+
+
+
+
+
+
+
+

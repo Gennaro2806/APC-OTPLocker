@@ -1,61 +1,69 @@
-* --- AREA DATI NODO C ---*
-        ORG $8000
-DIM     EQU     5
-MES     DC.B    'C', '2', '-', '1', '0'
+* --- AREA DATI NODO C ---
+		ORG	$8000
+DIM 		EQU 	4
+MES		DC.B	'C','2','-','2' * Dati in ASCII per leggerli nel Nodo A
 
-CNTB    DC.W    0
+CNTB		DC.W	0
 
-PRAC    EQU     $2006
-PCRAC    EQU     $2007
-WAIT_ITER   EQU 15
+PIADC		EQU	$2006		* Mantenuto a $2006 assumendo simulatore separato
+PIACC		EQU	$2007
+WAIT_ITER 	EQU 	15		* Costante di ritardo inserita dal professore
 
+* --- MAIN PROGRAM ---
+		ORG	$8200
+INIT		JSR	INIZIALIZZA
+	
+		* Preparazione dei registri
+		MOVE.W 	#DIM,D3	
+		MOVEA.L	#PIADC,A0
+		MOVEA.L #MES,A1
+		MOVE.W 	#1,CNTB 			
+		MOVE.W	CNTB,D0	
+	
+		* Abilitazione Interruzioni
+		MOVE.W	SR,D1
+		ANDI.W	#$D8FF,D1	
+		MOVE.W	D1,SR
+		
+		* Kick-start
+		MOVE.B	(A0),D2		* Effettua la lettura fittizia
+		MOVE.B 	(A1),(A0)	* Scrivi il primo carattere
 
-* --- AREA MAIN B --- *
-        ORG     $8200
+LOOP		JMP	LOOP
 
-INIT    JSR     STARTUP
+* --- INIZIALIZZAZIONE PIA ---
+INIZIALIZZA	
+		MOVE.B	#0,PIACC
+		MOVE.B	#$FF,PIADC
+		MOVE.B	#%00100101,PIACC
+		RTS
 
-        * PREPARA REGISTRI AUSILIARI
-        MOVE.W  #DIM, D3
-        MOVEA.L #PRAC, A0
-        MOVEA.L #MES, A1
-        MOVE.W  #1, CNTB
-        MOVE.W  CNTB, D0
-
-        * ABILITA INTERRUPT
-        MOVE.W  SR, D1
-        ANDI.W  #D8FF, D1
-        MOVE.W  D1, SR
-
-        * INVIO PRIMO CARATTERE PER INNESCARE HARDWARE
-        MOVE.B  (A0), D2 * LETTURA FITTIZIA
-        MOVE.B  (A1), (A0)
-    
-LOOP    JMP     LOOP
-
-* --- INIZIALIZZA PIA --- *
-STARTUP:
-    MOVE.B  #0, PCRAC
-    MOVE.B  #FF, PRAC
-    MOVE.B  #00100101, PCRAC
-
-* --- ISR B --- *
-    ORG     $8700
-
-INT4    MOVE.B  (A0), D2    * LETTURA FITTIZIA
-        MOVE.B  (A1, D0), (A0) * INVIA PROSSIMO CHAR
-        ADDI.W  #1, D0
-
-        * CONTROLLO BUFFER CIRCOLARE
-        CMP.W   D3, D0 * VERIFICA SE HO INVIATO TUTTO IL MSG
-        BNE     EI4    * SE NO, ESCI DALL'INTERRUPT
-        MOVE.W  #0, D0 * SE SI, AZZERA IL CONTATORE E POI ESCI
-
-        * Ciclo di rallentamento per non inondare il Nodo A
+* --- ISR (Interruzione mappata a $70) ---
+		ORG	$8800
+INT4		MOVE.B 	(A0),D2		* Lettura fittizia per spegnere l'interrupt
+		MOVE.B 	(A1,D0),(A0)	* Invia il carattere successivo
+		ADDI.W 	#1,D0
+		
+		* Controllo Buffer Circolare e Ritardo
+		CMP.W	D3,D0
+		BNE	EI4
+		MOVE.W	#0,D0		* Azzera l'indice (Ricomincia)
+		
+		* Ciclo di rallentamento per non inondare il Nodo A
 		MOVE.W	#0,D7
-WLOOP   ADDI.W 	#1,D7
+WLOOP 		ADDI.W 	#1,D7
 	 	CMP.W	#WAIT_ITER,D7
 	 	BNE	WLOOP
+	
+EI4 		RTE
 
-EI4     RTE
-        END INIT
+		END	INIT
+	
+
+
+
+
+
+
+
+

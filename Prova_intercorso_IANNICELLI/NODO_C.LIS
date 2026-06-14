@@ -1,0 +1,63 @@
+00000000                                     1  * --- AREA DATI NODO C ---
+00008000                                     2  		ORG	$8000
+00008000  =00000004                          3  DIM 		EQU 	4
+00008000  43 32 2D 32                        4  MES		DC.B	'C','2','-','2' * Dati in ASCII per leggerli nel Nodo A
+00008004                                     5  
+00008004  0000                               6  CNTB		DC.W	0
+00008006                                     7  
+00008006  =00002006                          8  PIADC		EQU	$2006		* Mantenuto a $2006 assumendo simulatore separato
+00008006  =00002007                          9  PIACC		EQU	$2007
+00008006  =0000000F                         10  WAIT_ITER 	EQU 	15		* Costante di ritardo inserita dal professore
+00008006                                    11  
+00008006                                    12  * --- MAIN PROGRAM ---
+00008200                                    13  		ORG	$8200
+00008200  4EB9 00008236                     14  INIT		JSR	INIZIALIZZA
+00008206                                    15  	
+00008206                                    16  		* Preparazione dei registri
+00008206  363C 0004                         17  		MOVE.W 	#DIM,D3	
+0000820A  207C 00002006                     18  		MOVEA.L	#PIADC,A0
+00008210  227C 00008000                     19  		MOVEA.L #MES,A1
+00008216  33FC 0001 00008004                20  		MOVE.W 	#1,CNTB 			
+0000821E  3039 00008004                     21  		MOVE.W	CNTB,D0	
+00008224                                    22  	
+00008224                                    23  		* Abilitazione Interruzioni
+00008224  40C1                              24  		MOVE.W	SR,D1
+00008226  0241 D8FF                         25  		ANDI.W	#$D8FF,D1	
+0000822A  46C1                              26  		MOVE.W	D1,SR
+0000822C                                    27  		
+0000822C                                    28  		* Kick-start
+0000822C  1410                              29  		MOVE.B	(A0),D2		* Effettua la lettura fittizia
+0000822E  1091                              30  		MOVE.B 	(A1),(A0)	* Scrivi il primo carattere
+00008230                                    31  
+00008230  4EF9 00008230                     32  LOOP		JMP	LOOP
+00008236                                    33  
+00008236                                    34  * --- INIZIALIZZAZIONE PIA ---
+00008236                                    35  INIZIALIZZA	
+00008236  11FC 0000 2007                    36  		MOVE.B	#0,PIACC
+0000823C  11FC 00FF 2006                    37  		MOVE.B	#$FF,PIADC
+00008242  11FC 0025 2007                    38  		MOVE.B	#%00100101,PIACC
+00008248  4E75                              39  		RTS
+0000824A                                    40  
+0000824A                                    41  * --- ISR (Interruzione mappata a $70) ---
+00008800                                    42  		ORG	$8800
+00008800  1410                              43  INT4		MOVE.B 	(A0),D2		* Lettura fittizia per spegnere l'interrupt
+00008802  10B1 0000                         44  		MOVE.B 	(A1,D0),(A0)	* Invia il carattere successivo
+00008806  5240                              45  		ADDI.W 	#1,D0
+00008808                                    46  		
+00008808                                    47  		* Controllo Buffer Circolare e Ritardo
+00008808  B043                              48  		CMP.W	D3,D0
+0000880A  6600 0012                         49  		BNE	EI4
+0000880E  303C 0000                         50  		MOVE.W	#0,D0		* Azzera l'indice (Ricomincia)
+00008812                                    51  		
+00008812                                    52  		* Ciclo di rallentamento per non inondare il Nodo A
+00008812  3E3C 0000                         53  		MOVE.W	#0,D7
+00008816  5247                              54  WLOOP 		ADDI.W 	#1,D7
+00008818  BE7C 000F                         55  	 	CMP.W	#WAIT_ITER,D7
+0000881C  66F8                              56  	 	BNE	WLOOP
+0000881E                                    57  	
+0000881E  4E73                              58  EI4 		RTE
+00008820                                    59  
+00008820                                    60  		END	INIT
+
+No errors detected
+No warnings generated

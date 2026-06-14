@@ -1,54 +1,55 @@
-* --- AREA DATI NODO B ---*
-        ORG $8000
-DIM     EQU     5
-MES     DC.B    'B', '1', '-', '1', '0'
+* --- AREA DATI NODO B ---
+		ORG	$8000
+DIM 		EQU 	4
+MES		DC.B	'B','1','-','1'	* Dati in ASCII per leggerli nel Nodo A
 
-CNTB    DC.W    0
+CNTB		DC.W	0
 
-PRAB    EQU     $2006
-PCRAB    EQU     $2007
+PIADB		EQU	$2006
+PIACB		EQU	$2007
+
+* --- MAIN PROGRAM ---
+		ORG	$8200
+INIT		JSR	INIZIALIZZA
+	
+		* Preparazione dei registri (Rimangono in vita per tutta l'esecuzione)
+		MOVE.W 	#DIM,D3	
+		MOVEA.L	#PIADB,A0
+		MOVEA.L #MES,A1
+		MOVE.W 	#1,CNTB 	* Inizia scrivendo 1 nel contatore di bytes		
+		MOVE.W	CNTB,D0		* D0 mantiene sempre l'indice (1)
+	
+		* Abilitazione Interruzioni
+		MOVE.W	SR,D1
+		ANDI.W	#$D8FF,D1	
+		MOVE.W	D1,SR
+		
+		* Kick-start: Invia il primo carattere per innescare l'hardware
+		MOVE.B	(A0),D2		* Effettua la lettura fittizia (Pulisce la PIA)
+		MOVE.B 	(A1),(A0)	* Scrive MES[0] nella PIA
+
+LOOP		JMP	LOOP
+
+* --- INIZIALIZZAZIONE PIA ---
+INIZIALIZZA	
+		MOVE.B	#0,PIACB
+		MOVE.B	#$FF,PIADB
+		MOVE.B	#%00100101,PIACB
+		RTS
+
+* --- ISR (Interruzione mappata a $70) ---
+		ORG	$8800
+INT4		MOVE.B 	(A0),D2		* Lettura fittizia per spegnere l'interrupt
+		MOVE.B 	(A1,D0),(A0)	* Invia il carattere successivo: MES[D0]
+		ADDI.W 	#1,D0		* Incrementa l'indice
+		
+		* Controllo Buffer Circolare
+		CMP.W	D3,D0		* Siamo arrivati alla fine del messaggio (4)?
+		BNE	EI4		* Se no, esce normalmente
+		MOVE.W	#0,D0		* Se si, AZZERA D0 (Ricomincia dall'inizio!)
+
+EI4 		RTE
+
+		END	INIT
 
 
-* --- AREA MAIN B --- *
-        ORG     $8200
-
-INIT    JSR     STARTUP
-
-        * PREPARA REGISTRI AUSILIARI
-        MOVE.W  #DIM, D3
-        MOVEA.L #PRAB, A0
-        MOVEA.L #MES, A1
-        MOVE.W  #1, CNTB
-        MOVE.W  CNTB, D0
-
-        * ABILITA INTERRUPT
-        MOVE.W  SR, D1
-        ANDI.W  #D8FF, D1
-        MOVE.W  D1, SR
-
-        * INVIO PRIMO CARATTERE PER INNESCARE HARDWARE
-        MOVE.B  (A0), D2 * LETTURA FITTIZIA
-        MOVE.B  (A1), (A0)
-    
-LOOP    JMP     LOOP
-
-* --- INIZIALIZZA PIA --- *
-STARTUP:
-    MOVE.B  #0, PCRAB
-    MOVE.B  #FF, PRAB
-    MOVE.B  #00100101, PCRAB
-
-* --- ISR B --- *
-    ORG     $8700
-
-INT4    MOVE.B  (A0), D2    * LETTURA FITTIZIA
-        MOVE.B  (A1, D0), (A0) * INVIA PROSSIMO CHAR
-        ADDI.W  #1, D0
-
-        * CONTROLLO BUFFER CIRCOLARE
-        CMP.W   D3, D0 * VERIFICA SE HO INVIATO TUTTO IL MSG
-        BNE     EI4    * SE NO, ESCI DALL'INTERRUPT
-        MOVE.W  #0, D0 * SE SI, AZZERA IL CONTATORE E POI ESCI
-
-EI4     RTE
-        END INIT
