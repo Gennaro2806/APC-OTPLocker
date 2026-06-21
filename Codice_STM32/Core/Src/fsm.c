@@ -30,6 +30,7 @@
 #define OPEN_STATE_TIMEOUT_MS        100000
 #define OTP_ENTRY_TIMEOUT_MS         60000
 #define NEW_PIN_NOT_VALID_TIME       2000
+volatile uint32_t fsmTick = 0;
 
 /* bypass temporaneo ACK ESP32 */
 #define OTP_SEND_SCREEN_MS           3000
@@ -93,9 +94,16 @@ static uint32_t otpSendTimeStamp = 0;
    HELPER PRIVATI
    ========================= */
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if (htim -> Instance == TIM3)
+	{
+		fsmTick++;
+	}
+}
+
 static void FSM_GenerateOtp(void)
 {
-    uint32_t value = HAL_GetTick() % 1000000;
+    uint32_t value = fsmTick % 1000000;
     snprintf(storedOtp, sizeof(storedOtp), "%06lu", (unsigned long)value);
 }
 
@@ -103,7 +111,7 @@ static void FSM_Transition(SystemState nextState)
 {
     currentState = nextState;
     stateEntryPending = true;
-    stateEntryTime = HAL_GetTick();
+    stateEntryTime = fsmTick;
 }
 
 static bool FSM_StateJustEntered(void)
@@ -227,7 +235,7 @@ void FSM_Init(void)
 {
     currentState = STATE_BOOT;
     stateEntryPending = true;
-    stateEntryTime = HAL_GetTick();
+    stateEntryTime = fsmTick;
 
     pinErrorCount = 0;
     otpErrorCount = 0;
@@ -280,7 +288,7 @@ void FSM_Update(char key)
                 FSM_DisplayMessage("BOOTING", "SYSTEM READY");
             }
 
-            if (HAL_GetTick() - stateEntryTime >= 3000)
+            if (fsmTick - stateEntryTime >= 3000)
             {
                 FSM_Transition(STATE_IDLE);
             }
@@ -371,7 +379,7 @@ void FSM_Update(char key)
                 FSM_SignalPinError();
             }
 
-            if (HAL_GetTick() - stateEntryTime >= PIN_ERROR_SIGNAL_MS)
+            if (fsmTick - stateEntryTime >= PIN_ERROR_SIGNAL_MS)
             {
                 if (pinErrorCount >= MAX_PIN_ERRORS)
                 {
@@ -399,7 +407,7 @@ void FSM_Update(char key)
                 ESP_UART_SendLockdownAlert();
             }
 
-            if (HAL_GetTick() - stateEntryTime >= LOCKDOWN_DURATION_MS)
+            if (fsmTick - stateEntryTime >= LOCKDOWN_DURATION_MS)
             {
                 Alarm_Stop();
                 FSM_Transition(STATE_WAIT_ADMIN_PIN_ENTRY);
@@ -454,7 +462,7 @@ void FSM_Update(char key)
                 }
             }
 
-            if (!stateEntryPending && (HAL_GetTick() - stateEntryTime >= ADMIN_ERROR_SIGNAL_MS))
+            if (!stateEntryPending && (fsmTick - stateEntryTime >= ADMIN_ERROR_SIGNAL_MS))
             {
                 if (strncmp(adminPinBuffer, adminPin, ADMIN_PIN_LENGTH) != 0)
                 {
@@ -564,14 +572,14 @@ void FSM_Update(char key)
 
                 FSM_DisplayMessage("SENDING OTP", "");
 
-                otpSendTimeStamp = HAL_GetTick();
+                otpSendTimeStamp = fsmTick;
             } else {
             	if (espAckReceived)
             	{
             		otpValid = true;
             		FSM_Transition(STATE_WAIT_OTP);
             	}
-            	else if ((HAL_GetTick() - otpSendTimeStamp) >= 5000)
+            	else if ((fsmTick - otpSendTimeStamp) >= 5000)
 				{
             		otpValid = true;
             		FSM_DisplayMessage("OTP TIMEOUT", "CHECK PHONE");
@@ -609,7 +617,7 @@ void FSM_Update(char key)
                 FSM_DisplayMaskedInput("ENTER OTP", otpIndex);
             }
 
-            if (HAL_GetTick() - stateEntryTime >= OTP_ENTRY_TIMEOUT_MS)
+            if (fsmTick - stateEntryTime >= OTP_ENTRY_TIMEOUT_MS)
             {
                 otpValid = false;
                 FSM_ClearBuffer(otpBuffer, OTP_LENGTH, &otpIndex);
@@ -675,7 +683,7 @@ void FSM_Update(char key)
                 otpValid = false;
             }
 
-            if (HAL_GetTick() - stateEntryTime >= 2000)
+            if (fsmTick - stateEntryTime >= 2000)
             {
                 Alarm_Stop();
                 FSM_Transition(STATE_WAIT_ADMIN_PIN_ENTRY);
@@ -693,7 +701,7 @@ void FSM_Update(char key)
                 servoIsOpen = true;
             }
 
-            if (HAL_GetTick() - stateEntryTime >= OPENING_SETTLE_MS)
+            if (fsmTick - stateEntryTime >= OPENING_SETTLE_MS)
             {
                 FSM_Transition(STATE_OPEN);
             }
@@ -713,7 +721,7 @@ void FSM_Update(char key)
             {
                 FSM_Transition(STATE_CLOSING);
             }
-            else if (HAL_GetTick() - stateEntryTime >= OPEN_STATE_TIMEOUT_MS)
+            else if (fsmTick - stateEntryTime >= OPEN_STATE_TIMEOUT_MS)
             {
                 FSM_Transition(STATE_CLOSING);
             }
@@ -734,7 +742,7 @@ void FSM_Update(char key)
                 otpErrorCount = 0;
             }
 
-            if (HAL_GetTick() - stateEntryTime >= 700)
+            if (fsmTick - stateEntryTime >= 700)
             {
                 FSM_Transition(STATE_IDLE);
             }
