@@ -1,291 +1,297 @@
-00000000                                     1  *	AREA DATI 
-00008000                                     2  		ORG 		$8000
-00008000  =00000004                          3  N		EQU		4 
-00008000  =00000005                          4  K 		EQU 		5 
-00008000  =00000000                          5  NONE 		EQU		0 
-00008000  =00000001                          6  B	 	EQU 		1 
-00008000  =00000002                          7  C		EQU		2
-00008000  =00002004                          8  PIADA_B	EQU		$2004
-00008000  =00002005                          9  PIACA_B	EQU		$2005
-00008000  =00002008                         10  PIADA_C	EQU		$2008
-00008000  =00002009                         11  PIACA_C	EQU		$2009
-00008000                                    12  
-00008000  0000                              13  FASE		DC.W		0
-00008002  0000                              14  LOCK		DC.W		0
-00008004  0000                              15  POSS		DC.W		NONE
-00008006                                    16  BUFFB		DS.B		N 
-0000800A                                    17  BUFFC		DS.B		N 
-0000800E  0000                              18  CHARB		DC.W		0
-00008010  0000                              19  MSGB		DC.W		0 
-00008012  0000                              20  COUNTB	DC.W		0
-00008014  0000                              21  FINEB		DC.W		0
-00008016  0000                              22  PENDINGB	DC.W		0
-00008018  0000                              23  CHARC		DC.W		0
-0000801A  0000                              24  MSGC		DC.W		0
-0000801C  0000                              25  COUNTC	DC.W		0
-0000801E  0000                              26  FINEC		DC.W		0
-00008020  0000                              27  PENDINGC	DC.W		0
-00008022  0000                              28  MSG		DC.W		0
-00008024                                    29  
-00008024                                    30  
-00008024                                    31  *	MAIN
-00008200                                    32  		ORG		$8200
-00008200  4EB9 00008214                     33  MAIN		JSR		INIT
-00008206  40C0                              34  		MOVE.W	SR,D0
-00008208  0240 D8FF                         35  		ANDI.W		#$D8FF,D0
-0000820C  46C0                              36  		MOVE.W	D0,SR
-0000820E  4EF9 0000820E                     37  LOOP		JMP		LOOP
-00008214                                    38  
-00008214  4238 2005                         39  INIT		CLR.B		PIACA_B
-00008218  4238 2004                         40  		CLR.B		PIADA_B
-0000821C  11FC 0025 2005                    41  		MOVE.B	#%00100101,PIACA_B
-00008222  4238 2009                         42  		CLR.B		PIACA_C
-00008226  4238 2008                         43  		CLR.B		PIADA_C
-0000822A  11FC 0025 2009                    44  		MOVE.B	#%00100101,PIACA_C
-00008230  4E75                              45  		RTS
-00008232                                    46  
-00008232                                    47  ***	-----	ISR_B		------***
-00008700                                    48  		ORG		$8700
-00008700  48E7 F8C0                         49  ISRB		MOVEM.L	D0-D4/A0-A1,-(A7)
-00008704                                    50  
-00008704                                    51  **PER TERMIANRE IL PROCESSO
-00008704  0C79 0002 00008000                52  		CMP.W	#2,FASE
-0000870C  6700 010E                         53  		BEQ		STOPB
-00008710                                    54  
-00008710  33FC 0001 00008016                55  		MOVE.W	#1,PENDINGB
-00008718                                    56  
-00008718  4A79 00008000                     57  		TST.W		FASE
-0000871E  6600 01D0                         58  		BNE		CKF2
-00008722                                    59  		
-00008722  0C79 0001 00008014                60  		CMP.W	#1,FINEB
-0000872A  6700 0056                         61  		BEQ		IGNB
-0000872E                                    62  
-0000872E  41F9 00008006                     63  ORJMP		LEA		BUFFB,A0
-00008734  3039 0000800E                     64  		MOVE.W	CHARB,D0
-0000873A                                    65  		
-0000873A  11B8 2004 0000                    66  		MOVE.B	PIADA_B,(A0,D0)
-00008740  5240                              67  		ADDQ.W	#1,D0
-00008742  33C0 0000800E                     68  		MOVE.W	D0,CHARB
-00008748  4279 00008016                     69  		CLR.W		PENDINGB
-0000874E  B07C 0004                         70  		CMP.W		#N,D0
-00008752  6600 00D0                         71  		BNE		EXIT
-00008756  3239 00008010                     72  		MOVE.W	MSGB,D1
-0000875C  5241                              73  		ADDQ.W	#1,D1
-0000875E  33C1 00008010                     74  		MOVE.W	D1,MSGB
-00008764  4279 0000800E                     75  		CLR.W		CHARB
-0000876A  0C79 0005 00008010                76  		CMP.W	#K,MSGB
-00008772  6600 00B0                         77  		BNE		EXIT
-00008776  33FC 0001 00008014                78  		MOVE.W	#1,FINEB
-0000877E  6000 0010                         79  		BRA		RECC
-00008782                                    80  
-00008782  1038 2004                         81  IGNB		MOVE.B	PIADA_B,D0
-00008786  4279 00008016                     82  		CLR.W		PENDINGB
-0000878C  6000 003C                         83  		BRA		ENDMSG
-00008790                                    84  
-00008790                                    85  ** RECUPERO DEL CARATTERE
-00008790  0C79 0001 00008020                86  RECC		CMP.W 	#1,PENDINGC
-00008798  6600 0030                         87  		BNE		ENDMSG
-0000879C  0C79 0001 0000801E                88  		CMP.W	#1,FINEC
-000087A4  6600 0024                         89  		BNE		ENDMSG
-000087A8  3439 00008018                     90  		MOVE.W	CHARC,D2
-000087AE  5242                              91  		ADDQ.W	#1,D2
-000087B0  4279 00008020                     92  		CLR.W		PENDINGC
-000087B6  33C2 00008018                     93  		MOVE.W	D2,CHARC
-000087BC  5342                              94  		SUBQ.W	#1,D2
-000087BE  41F9 0000800A                     95  		LEA		BUFFC,A0
-000087C4  11B8 2008 2000                    96  		MOVE.B	PIADA_C,(A0,D2)
-000087CA                                    97  	
-000087CA  0C79 0001 0000801E                98  ENDMSG		CMP.W		#1,FINEC
-000087D2  6600 0050                         99  		BNE		EXIT
-000087D6  3639 00008000                    100  		MOVE.W	FASE,D3
-000087DC  5243                             101  		ADDQ.W	#1,D3
-000087DE  33C3 00008000                    102  		MOVE.W	D3,FASE
-000087E4  6000 003E                        103  		BRA		EXIT
-000087E8                                   104  
-000087E8  0C79 0000 00008004               105  FASE2		CMP.W	#NONE,POSS
-000087F0  6600 0038                        106  		BNE		CKPOSS
-000087F4  4AF9 00008002                    107  		TAS		LOCK
-000087FA  6600 0028                        108  		BNE		EXIT
-000087FE  0C79 0000 00008004               109  		CMP.W	#NONE,POSS
-00008806  6600 000A                        110  		BNE		RELEASE
-0000880A  33FC 0001 00008004               111  		MOVE.W	#B,POSS
-00008812                                   112  		
-00008812  4279 00008002                    113  RELEASE	CLR.W		LOCK
-00008818  6000 0010                        114  		BRA		CKPOSS
-0000881C                                   115  
-0000881C  1038 2004                        116  STOPB		MOVE.B	PIADA_B,D0
-00008820  6000 0002                        117  		BRA		EXIT
-00008824                                   118  		
-00008824  4CDF 031F                        119  EXIT		MOVEM.L	(A7)+,D0-D4/A0-A1
-00008828  4E73                             120  		RTE
-0000882A                                   121  
-0000882A  0C79 0001 00008004               122  CKPOSS	CMP.W		#B,POSS
-00008832  66F0                             123  		BNE		EXIT
-00008834  0C79 0001 00008016               124  		CMP.W	#1,PENDINGB
-0000883C  66E6                             125  		BNE		EXIT
-0000883E  41F9 00008006                    126  		LEA		BUFFB,A0
-00008844  3039 0000800E                    127  		MOVE.W	CHARB,D0
-0000884A  3239 00008022                    128  		MOVE.W	MSG,D1
-00008850  3439 00008012                    129  		MOVE.W	COUNTB,D2
-00008856  11B8 2004 0000                   130  		MOVE.B	PIADA_B,(A0,D0)
-0000885C  4279 00008016                    131  		CLR.W		PENDINGB
-00008862  5240                             132  		ADDQ.W	#1,D0
-00008864  33C0 0000800E                    133  		MOVE.W	D0,CHARB
-0000886A  0C79 0004 0000800E               134  		CMP.W	#N,CHARB
-00008872  66B0                             135  		BNE		EXIT
-00008874  5241                             136  		ADDQ.W	#1,D1
-00008876  33C1 00008022                    137  		MOVE.W	D1,MSG
-0000887C  4279 0000800E                    138  		CLR.W		CHARB
-00008882  5242                             139  		ADDQ.W	#1,D2
-00008884  33C2 00008012                    140  		MOVE.W	D2,COUNTB
-0000888A                                   141  
-0000888A  B27C 0005                        142  		CMP.W	#K,D1
-0000888E  6600 000C                        143  		BNE		CNGPOSS
-00008892  33FC 0002 00008000               144  		MOVE.W	#2,FASE
-0000889A  6088                             145  		BRA		EXIT
-0000889C                                   146  		
-0000889C  B47C 0004                        147  CNGPOSS		CMP.W	#(K-1),D2
-000088A0  6600 000E                        148  		BNE		ELSEPOSS
-000088A4  33FC 0002 00008004               149  		MOVE.W	#C,POSS
-000088AC  6000 0008                        150  		BRA		REC
-000088B0                                   151  
-000088B0  4279 00008004                    152  ELSEPOSS	CLR.W		POSS
-000088B6                                   153  
-000088B6                                   154  
-000088B6  0C79 0001 00008020               155  REC		CMP.W		#1,PENDINGC
-000088BE  6600 FF64                        156  		BNE		EXIT
-000088C2  33FC 0002 00008004               157  		MOVE.W	#C,POSS
-000088CA  4279 00008020                    158  		CLR.W		PENDINGC
-000088D0  3639 00008018                    159  		MOVE.W	CHARC,D3
-000088D6  5243                             160  		ADD.W		#1,D3
-000088D8  33C3 00008018                    161  		MOVE.W	D3,CHARC
-000088DE  5343                             162  		SUB.W		#1,D3
-000088E0  43F9 0000800A                    163  		LEA		BUFFC,A1
-000088E6  13B8 2008 3000                   164  		MOVE.B	PIADA_C,(A1,D3)
-000088EC  6000 FF36                        165  		BRA		EXIT
-000088F0                                   166  
-000088F0  4EF9 000087E8                    167  CKF2		JMP		FASE2
-000088F6                                   168  
-000088F6                                   169  ***	-----	ISR_C		------***
-00008900                                   170  		ORG		$8900
-00008900  48E7 F8C0                        171  ISRC		MOVEM.L	D0-D4/A0-A1,-(A7)
-00008904                                   172  **PER FINIRE PROCESSO
-00008904  0C79 0002 00008000               173  		CMP.W	#2,FASE
-0000890C  6700 010A                        174  		BEQ		STOPC
-00008910                                   175  
-00008910  33FC 0001 00008020               176  		MOVE.W	#1,PENDINGC
-00008918  4A79 00008000                    177  		TST.W		FASE
-0000891E  6600 01C8                        178  		BNE		CF2C
-00008922                                   179  
-00008922  0C79 0001 0000801E               180  		CMP.W	#1,FINEC
-0000892A  6700 0052                        181  		BEQ		IGNC
-0000892E                                   182  
-0000892E  41F9 0000800A                    183  ORJMPC	LEA		BUFFC,A0
-00008934  3039 00008018                    184  		MOVE.W	CHARC,D0
-0000893A                                   185  
-0000893A  11B8 2008 0000                   186  		MOVE.B	PIADA_C,(A0,D0)
-00008940  5240                             187  		ADDQ.W	#1,D0
-00008942  33C0 00008018                    188  		MOVE.W	D0,CHARC
-00008948  4279 00008020                    189  		CLR.W		PENDINGC
-0000894E  B07C 0004                        190  		CMP.W		#N,D0
-00008952  6600 00CC                        191  		BNE		EXITC
-00008956  3239 0000801A                    192  		MOVE.W	MSGC,D1
-0000895C  5241                             193  		ADDQ.W	#1,D1
-0000895E  33C1 0000801A                    194  		MOVE.W	D1,MSGC
-00008964  4279 00008018                    195  		CLR.W		CHARC
-0000896A  B27C 0005                        196  		CMP.W	#K,D1
-0000896E  6600 00B0                        197  		BNE		EXITC
-00008972                                   198  		
-00008972  33FC 0001 0000801E               199  		MOVE.W	#1,FINEC
-0000897A  6000 0010                        200  		BRA		RECB
-0000897E  1038 2008                        201  IGNC		MOVE.B	PIADA_C,D0
-00008982  4279 00008020                    202  		CLR.W		PENDINGC
-00008988  6000 003C                        203  		BRA		ENDMSGC
-0000898C                                   204  
-0000898C  0C79 0001 00008016               205  RECB		CMP.W	#1,PENDINGB
-00008994  6600 0030                        206  		BNE		ENDMSGC
-00008998  0C79 0001 00008014               207  		CMP.W	#1,FINEB
-000089A0  6600 0024                        208  		BNE		ENDMSGC
-000089A4  3439 0000800E                    209  		MOVE.W	CHARB,D2
-000089AA  5242                             210  		ADDQ.W	#1,D2
-000089AC  4279 00008016                    211  		CLR.W		PENDINGB
-000089B2  33C2 0000800E                    212  		MOVE.W	D2,CHARB
-000089B8  5342                             213  		SUBQ.W	#1,D2	
-000089BA  41F9 00008006                    214  		LEA		BUFFB,A0
-000089C0  11B8 2004 2000                   215  		MOVE.B	PIADA_B,(A0,D2)	
-000089C6                                   216  
-000089C6  0C79 0001 00008014               217  ENDMSGC	CMP.W		#1,FINEB
-000089CE  6600 0050                        218  		BNE		EXITC
-000089D2  3639 00008000                    219  		MOVE.W	FASE,D3
-000089D8  5243                             220  		ADDQ.W	#1,D3
-000089DA  33C3 00008000                    221  		MOVE.W	D3,FASE
-000089E0  6000 003E                        222  		BRA		EXITC
-000089E4                                   223  
-000089E4  0C79 0000 00008004               224  FASE2C	CMP.W	#NONE,POSS
-000089EC  6600 0038                        225  		BNE		CKPOSSC
-000089F0  4AF9 00008002                    226  		TAS		LOCK
-000089F6  6600 0028                        227  		BNE		EXITC
-000089FA  0C79 0000 00008004               228  		CMP.W		#NONE,POSS
-00008A02  6600 000A                        229  		BNE		RELEASEC
-00008A06  33FC 0002 00008004               230  		MOVE.W	#C,POSS
-00008A0E                                   231  		
-00008A0E  4279 00008002                    232  RELEASEC	CLR.W		LOCK
-00008A14  6000 0010                        233  		BRA		CKPOSSC
-00008A18                                   234  
-00008A18  1038 2008                        235  STOPC		MOVE.B	PIADA_C,D0
-00008A1C  6000 0002                        236  		BRA		EXITC
-00008A20                                   237  
-00008A20  4CDF 031F                        238  EXITC		MOVEM.L	(A7)+,D0-D4/A0-A1
-00008A24  4E73                             239  		RTE
-00008A26                                   240  
-00008A26  0C79 0002 00008004               241  CKPOSSC	CMP.W		#C,POSS
-00008A2E  66F0                             242  		BNE		EXITC
-00008A30  0C79 0001 00008020               243  		CMP.W	#1,PENDINGC
-00008A38  66E6                             244  		BNE		EXITC
-00008A3A  41F9 0000800A                    245  		LEA		BUFFC,A0
-00008A40  3039 00008018                    246  		MOVE.W	CHARC,D0
-00008A46  3239 00008022                    247  		MOVE.W	MSG,D1
-00008A4C  3439 0000801C                    248  		MOVE.W	COUNTC,D2
-00008A52  11B8 2008 0000                   249  		MOVE.B	PIADA_C,(A0,D0)
-00008A58  4279 00008020                    250  		CLR.W		PENDINGC
-00008A5E  5240                             251  		ADDQ.W	#1,D0
-00008A60  33C0 00008018                    252  		MOVE.W	D0,CHARC
-00008A66  B07C 0004                        253  		CMP.W		#N,D0
-00008A6A  66B4                             254  		BNE		EXITC
-00008A6C  5241                             255  		ADDQ.W	#1,D1
-00008A6E  33C1 00008022                    256  		MOVE.W	D1,MSG
-00008A74  4279 00008018                    257  		CLR.W		CHARC
-00008A7A  5242                             258  		ADDQ.W	#1,D2
-00008A7C  33C2 0000801C                    259  		MOVE.W	D2,COUNTC
-00008A82                                   260  		
-00008A82  B27C 0005                        261  		CMP.W	#K,D1
-00008A86  6600 000C                        262  		BNE		CNGPOSC
-00008A8A  33FC 0002 00008000               263  		MOVE.W	#2,FASE
-00008A92  608C                             264  		BRA		EXITC
-00008A94                                   265  
-00008A94  B47C 0004                        266  CNGPOSC	CMP.W	#(K-1),D2
-00008A98  6600 000E                        267  		BNE		ELSEPOSC
-00008A9C  33FC 0001 00008004               268  		MOVE.W	#B,POSS
-00008AA4  6000 0008                        269  		BRA		RCVC
-00008AA8                                   270  
-00008AA8  4279 00008004                    271  ELSEPOSC	CLR.W		POSS
-00008AAE                                   272  
-00008AAE                                   273  
-00008AAE  0C79 0001 00008016               274  RCVC		CMP.W		#1,PENDINGB
-00008AB6  6600 FF68                        275  		BNE		EXITC
-00008ABA  33FC 0001 00008004               276  		MOVE.W	#B,POSS
-00008AC2  4279 00008016                    277  		CLR.W		PENDINGB
-00008AC8  3639 0000800E                    278  		MOVE.W	CHARB,D3
-00008ACE  5243                             279  		ADDQ.W	#1,D3
-00008AD0  33C3 0000800E                    280  		MOVE.W	D3,CHARB
-00008AD6  5343                             281  		SUBQ.W	#1,D3
-00008AD8  43F9 00008006                    282  		LEA		BUFFB,A1
-00008ADE  13B8 2004 3000                   283  		MOVE.B	PIADA_B,(A1,D3)
-00008AE4  6000 FF3A                        284  		BRA		EXITC
-00008AE8                                   285  
-00008AE8  4EF9 000089E4                    286  CF2C		JMP		FASE2C
-00008AEE                                   287  		
-00008AEE                                   288  		END		MAIN
+00000000                                     1  
+00000000                                     2  
+00000000                                     3  
+00000000                                     4  *definizioni costanti
+00000000  =00002004                          5  PIAABD	EQU     $2004       ; Registro Dati PIA B 
+00000000  =00002005                          6  PIAABC	EQU	$2005       ;Registro Controllo PIA B		
+00000000  =00002008                          7  PIAACD	EQU	$2008	     ;Registro Dato PIA C
+00000000  =00002009                          8  PIAACC		EQU     $2009       ; Registro Controllo PIA C 
+00000000                                     9  
+00000000  =00000004                         10  N	EQU     4          	
+00000000  =00000005                         11  K	EQU     5           	
+00000000                                    12  
+00000000  =00000000                         13  POSS_NONE   EQU     0           
+00000000  =00000001                         14  POSS_B      	EQU     1           
+00000000  =00000002                         15  POSS_C      	EQU     2           
+00000000                                    16  
+00000000                                    17  *definizioni Variabili
+00008000                                    18  	ORG	$8000
+00008000  0000                              19  LOCK        	DC.W    0
+00008002  0001                              20  FASE        	DC.W    1
+00008004  0000                              21  POSSESSO    	DC.W    0
+00008006  0000                              22  PEND_B   	DC.W    0
+00008008  0000                              23  PEND_C   	DC.W    0
+0000800A  0000                              24  END_B       	DC.W    0
+0000800C  0000                              25  END_C       	DC.W    0
+0000800E  0000                              26  END_TOT     	DC.W    0
+00008010  0000                              27  CHAR_B      	DC.W    0
+00008012  0000                              28  CHAR_C      	DC.W    0
+00008014  0000                              29  MESS_TOT      DC.W    0
+00008016  0000                              30  MESS_B      	DC.W    0
+00008018  0000                              31  MESS_C	DC.W	 0
+0000801A  0000                              32  INVIO_B     	DC.W    0
+0000801C  0000                              33  INVIO_C     	DC.W    0
+0000801E                                    34  BUFF_B      	DS.B    N*K
+00008032                                    35  BUFF_C      	DS.B    N*K
+00008046                                    36  
+00008046                                    37  *main
+00008200                                    38  	ORG	$8200
+00008200  4EB9 00008214                     39  MAIN	JSR INIT_PIA
+00008206                                    40  	
+00008206  40C0                              41  	MOVE.W	SR,D0
+00008208  0240 D8FF                         42  	ANDI.W	#$D8FF,D0
+0000820C  46C0                              43  	MOVE.W	D0,SR
+0000820E                                    44  
+0000820E  4EF9 0000820E                     45  LOOP 	JMP	LOOP
+00008214                                    46  
+00008214                                    47  
+00008214  11FC 0000 2005                    48  INIT_PIA	MOVE.B	#0,PIAABC
+0000821A  11FC 0000 2004                    49  		MOVE.B	#0,PIAABD
+00008220  11FC 0025 2005                    50  		MOVE.B	#%00100101,PIAABC
+00008226                                    51  
+00008226  11FC 0000 2009                    52  		MOVE.B	#0,PIAACC
+0000822C  11FC 0000 2008                    53  		MOVE.B	#0,PIAACD
+00008232  11FC 0025 2009                    54  		MOVE.B	#%00100101,PIAACC
+00008238  4E75                              55  		RTS
+0000823A                                    56  
+0000823A                                    57  *ISR B
+00008700                                    58  	ORG	$8700
+00008700                                    59  ISR_B		
+00008700  48E7 E0C0                         60  		MOVEM.L 	D0-D2/A0-A1,-(SP)    
+00008704  33FC 0001 00008006                61  		MOVE.W	#1,PEND_B         
+0000870C  0C79 0001 00008002                62      		CMPI.W 	#1,FASE              
+00008714  6600 00AA                         63  		BNE     	FASE_2
+00008718  0C79 0000 0000800A                64  FASE_1	CMP.W	#0,END_B	
+00008720  6600 01D0                         65  		BNE		RETURN
+00008724                                    66  
+00008724  207C 00002004                     67  		MOVEA.L 	#PIAABD,A0           ; Carica indirizzo dati PIA B (preparazione per la lettura)
+0000872A  227C 0000801E                     68     		MOVEA.L 	#BUFF_B,A1           
+00008730  3239 00008010                     69     		MOVE.W  	CHAR_B,D1            
+00008736                                    70      
+00008736  1390 1000                         71     		MOVE.B  	(A0),(A1,D1.W)       ;LETTURA B
+0000873A  4279 00008006                     72      		CLR.W  	PEND_B        
+00008740                                    73      
+00008740  5279 00008010                     74      		ADDQ.W  	#1,CHAR_B            
+00008746  0C79 0004 00008010                75      		CMPI.W  	#N,CHAR_B           
+0000874E  6600 01A2                         76      		BNE     	RETURN
+00008752                                    77     		
+00008752  4279 00008010                     78  		CLR.W 	CHAR_B            
+00008758  5279 00008016                     79      		ADDQ.W  	#1,MESS_B            
+0000875E                                    80      
+0000875E  0C79 0005 00008016                81      		CMPI.W  	#K,MESS_B            
+00008766  6600 018A                         82      		BNE     	RETURN
+0000876A                                    83      
+0000876A  33FC 0001 0000800A                84      		MOVE.W 	#1,END_B             ; endB = 1
+00008772  0C79 0000 0000800C                85      		CMP.W   	#0,END_C                 
+0000877A  6700 0176                         86      		BEQ     	RETURN
+0000877E                                    87  		
+0000877E  33FC 0002 00008002                88  		MOVE.W  	#2,FASE              ; FASE = 2
+00008786  0C79 0000 00008008                89  CHEK_C1    	CMP.W  	#0,PEND_C             
+0000878E  6700 0162                         90      		BEQ     	RETURN
+00008792                                    91      
+00008792  33FC 0002 00008004                92      		MOVE.W  	#POSS_C,POSSESSO     ; possesso = C (perché adesso entriamo in fase 2)
+0000879A  4279 00008008                     93      		CLR.W  	PEND_C        
+000087A0  3439 00008012                     94  		MOVE.W  	CHAR_C,D2	        ;Sposto prima il CharC perché lo incremento prima di fare la lettura
+000087A6  5279 00008012                     95  		ADDQ.W  	#1,CHAR_C            ; incremento prima il carattere e poi sblocco la PIA
+000087AC                                    96      
+000087AC  207C 00002008                     97      		MOVEA.L	#PIAACD,A0           ; Sblocco PIA C
+000087B2  227C 00008032                     98      		MOVEA.L 	#BUFF_C,A1
+000087B8  1390 2000                         99      		MOVE.B  	(A0),(A1,D2.W)       ; buffC[charC] = readPIA(C)
+000087BC  6000 0134                        100      		BRA     	RETURN
+000087C0                                   101  
+000087C0  0C79 0000 0000800E               102  FASE_2	CMP.W   	#0,END_TOT               
+000087C8  6600 0128                        103     	 	BNE     	RETURN
+000087CC                                   104      
+000087CC  0C79 0000 00008004               105      		CMPI.W  	#POSS_NONE,POSSESSO  
+000087D4  6600 0034                        106      		BNE     	CHECK_READ
+000087D8                                   107      
+000087D8  4AF9 00008000                    108      		TAS     		LOCK                  
+000087DE  6600 0112                        109      		BNE     	RETURN
+000087E2                                   110      
+000087E2  0C79 0000 00008004               111      		CMPI.W  	#POSS_NONE,POSSESSO 
+000087EA  6600 0014                        112     	 	BNE     	UNLOCK_RET
+000087EE  33FC 0001 00008004               113      		MOVE.W 	#POSS_B,POSSESSO
+000087F6  4279 00008000                    114  		CLR.W		LOCK
+000087FC  6000 000C                        115  		BRA		CHECK_READ
+00008800                                   116  		
+00008800  4279 00008000                    117  UNLOCK_RET	CLR.W		LOCK
+00008806  6000 00EA                        118  		BRA 		RETURN	
+0000880A                                   119  
+0000880A  0C79 0001 00008004               120  CHECK_READ	CMP.W  	#POSS_B,POSSESSO     
+00008812  6600 00DE                        121      		BNE     	RETURN
+00008816  0C79 0001 00008006               122      		CMP.W   	#1,PEND_B             
+0000881E  6600 00D2                        123      		BNE     	RETURN	
+00008822                                   124  		
+00008822  207C 00002004                    125  		MOVEA.L 	#PIAABD,A0           ;preparazione lettura
+00008828  227C 0000801E                    126      		MOVEA.L 	#BUFF_B,A1
+0000882E  3239 00008010                    127      		MOVE.W  	CHAR_B,D1
+00008834  1390 1000                        128      		MOVE.B  	(A0),(A1,D1.W)	;lettura B
+00008838                                   129      
+00008838  5279 00008010                    130      		ADDQ.W  	#1,CHAR_B            
+0000883E  4279 00008006                    131      		CLR.W  	PEND_B         
+00008844                                   132      
+00008844  0C79 0004 00008010               133      		CMP.W  	#N,CHAR_B            
+0000884C  6600 00A4                        134      		BNE     	RETURN
+00008850                                   135  		
+00008850  4279 00008010                    136  		CLR.W  	CHAR_B	;caratteri finiti, incremento mess
+00008856  5279 00008014                    137      		ADDQ.W  	#1,MESS_TOT              
+0000885C  5279 0000801A                    138      		ADDQ.W  	#1,INVIO_B	
+00008862                                   139  
+00008862  303C 0005                        140  		MOVE.W  	#K,D0                 ; devo verificare se anche C ha inviato almeno un messaggio
+00008866  5340                             141      		SUBQ.W  	#1,D0               
+00008868  B079 00008014                    142     		CMP.W   	MESS_TOT,D0              
+0000886E  6600 0026                        143      		BNE     	CHECK_END
+00008872                                   144  
+00008872  0C79 0000 0000801C               145  		CMP.W  	#0,INVIO_C              
+0000887A  6600 000E                        146      		BNE     	RELEASE
+0000887E  33FC 0002 00008004               147      		MOVE.W  	#POSS_C,POSSESSO     ; Forza possesso a C perché ancora non ha inviato il messaggio
+00008886  6000 0028                        148      		BRA     	CHECK_C
+0000888A                                   149  
+0000888A  33FC 0000 00008004               150  RELEASE	MOVE.W  	#POSS_NONE,POSSESSO
+00008892  6000 001C                        151  		BRA     	CHECK_C
+00008896                                   152  
+00008896  0C79 0005 00008014               153  CHECK_END   CMPI.W   	#K,MESS_TOT               
+0000889E  66EA                             154      		BNE     	RELEASE
+000088A0  33FC 0001 0000800E               155      		MOVE.W  	#1,END_TOT           ; END = 1
+000088A8  33FC 0000 00008004               156      		MOVE.W  	#POSS_NONE,POSSESSO
+000088B0                                   157  
+000088B0  0C79 0000 00008008               158  CHECK_C    	CMP.W   	#0,PEND_C             
+000088B8  6700 0038                        159      		BEQ     	RETURN
+000088BC  0C79 0000 0000800E               160      		CMP.W   	#0,END_TOT
+000088C4  6600 002C                        161      		BNE     	RETURN
+000088C8                                   162  
+000088C8  33FC 0002 00008004               163  		MOVE.W 	#POSS_C,POSSESSO     ; possesso = C
+000088D0  4279 00008008                    164      		CLR.W 	PEND_C         
+000088D6  3439 00008012                    165  		MOVE.W  	CHAR_C,D2	        ;Sposto prima il CharC perché lo incremento prima di fare la lettura
+000088DC  5279 00008012                    166  		ADDQ.W  	#1,CHAR_C            ; incremento prima il carattere e poi sblocco la PIA
+000088E2                                   167  
+000088E2  207C 00002008                    168      		MOVEA.L 	#PIAACD,A0           ; Leggi da C per sbloccare 
+000088E8  227C 00008032                    169      		MOVEA.L 	#BUFF_C,A1
+000088EE  1390 2000                        170      		MOVE.B  	(A0),(A1,D2.W)
+000088F2                                   171      
+000088F2  4CDF 0307                        172  RETURN    	MOVEM.L 	(SP)+,D0-D2/A0-A1    ; Ripristino registri
+000088F6  4E73                             173      		RTE
+000088F8                                   174  
+000088F8                                   175  *ISR C
+00008900                                   176  		ORG	$8900              
+00008900                                   177  ISR_C		
+00008900  48E7 E0C0                        178  		MOVEM.L 	D0-D2/A0-A1,-(SP)    
+00008904  33FC 0001 00008008               179  		MOVE.W	#1,PEND_C         
+0000890C  0C79 0001 00008002               180      		CMPI.W 	#1,FASE              
+00008914  6600 00B0                        181  		BNE     	FASEC_2
+00008918                                   182  
+00008918  0C79 0000 0000800C               183  FASEC_1	CMP.W	#0,END_C	
+00008920  6600 01E0                        184  		BNE		RET_C
+00008924                                   185  
+00008924  207C 00002008                    186  		MOVEA.L 	#PIAACD,A0           ; Carica indirizzo dati PIA C
+0000892A  227C 00008032                    187     		MOVEA.L 	#BUFF_C,A1           
+00008930  3439 00008012                    188     		MOVE.W  	CHAR_C,D2            
+00008936                                   189      
+00008936  1390 2000                        190     		MOVE.B  	(A0),(A1,D2.W)       ; LETTURA C
+0000893A  33FC 0000 00008008               191      		MOVE.W  	#0,PEND_C        
+00008942                                   192      
+00008942  5279 00008012                    193      		ADDQ.W  	#1,CHAR_C             
+00008948  0C79 0004 00008012               194      		CMPI.W  	#N,CHAR_C           
+00008950  6600 01B0                        195      		BNE     	RET_C
+00008954                                   196     		
+00008954  33FC 0000 00008012               197  		MOVE.W  	#0,CHAR_C            
+0000895C  5279 00008018                    198      		ADDQ.W  	#1,MESS_C            
+00008962                                   199      
+00008962  0C79 0005 00008018               200      		CMPI.W  	#K,MESS_C            
+0000896A  6600 0196                        201      		BNE     	RET_C
+0000896E                                   202      
+0000896E  33FC 0001 0000800C               203     		MOVE.W 	#1,END_C             ; endC = 1
+00008976  0C79 0000 0000800A               204      		CMP.W   	#0,END_B                 
+0000897E  6700 0182                        205      		BEQ     	RET_C
+00008982                                   206  		
+00008982  33FC 0002 00008002               207  		MOVE.W  	#2,FASE              ; FASE = 2
+0000898A  0C79 0000 00008006               208  CHEK_B1    	CMP.W  	#0,PEND_B             
+00008992  6700 016E                        209      		BEQ     	RET_C
+00008996                                   210      
+00008996  33FC 0001 00008004               211      		MOVE.W  	#POSS_B,POSSESSO     ; possesso = B (entriamo in fase 2)
+0000899E  33FC 0000 00008006               212      		MOVE.W  	#0,PEND_B        
+000089A6  3239 00008010                    213  		MOVE.W  	CHAR_B,D1	         ; Sposto prima il CharB 
+000089AC  5279 00008010                    214  		ADDQ.W  	#1,CHAR_B            ; incremento prima di sbloccare la PIA
+000089B2                                   215      
+000089B2  207C 00002004                    216      		MOVEA.L	#PIAABD,A0           ; Sblocco PIA B
+000089B8  227C 0000801E                    217      		MOVEA.L 	#BUFF_B,A1
+000089BE  1390 1000                        218      		MOVE.B  	(A0),(A1,D1.W)       ; buffB[charB] = readPIA(B)
+000089C2  6000 013E                        219      		BRA     	RET_C
+000089C6                                   220  
+000089C6                                   221  
+000089C6  0C79 0000 0000800E               222  FASEC_2	CMP.W   	#0,END_TOT               
+000089CE  6600 0132                        223     	 	BNE     	RET_C
+000089D2                                   224      
+000089D2  0C79 0000 00008004               225      		CMPI.W  	#POSS_NONE,POSSESSO  
+000089DA  6600 0038                        226      		BNE     	CHECK_R_C
+000089DE                                   227      
+000089DE  4AF9 00008000                    228      		TAS     		LOCK                  
+000089E4  6600 011C                        229      		BNE     	RET_C
+000089E8                                   230      
+000089E8  0C79 0000 00008004               231      		CMPI.W  	#POSS_NONE,POSSESSO 
+000089F0  6600 0016                        232     	 	BNE		UNL_RET_C
+000089F4  33FC 0002 00008004               233      		MOVE.W 	#POSS_C,POSSESSO
+000089FC  33FC 0000 00008000               234  		MOVE.W	#0,LOCK
+00008A04  6000 000E                        235  		BRA		CHECK_R_C
+00008A08                                   236  
+00008A08  33FC 0000 00008000               237  UNL_RET_C	MOVE.W	#0,LOCK
+00008A10  6000 00F0                        238  		BRA 		RET_C	
+00008A14                                   239  
+00008A14  0C79 0002 00008004               240  CHECK_R_C	CMP.W  	#POSS_C,POSSESSO     
+00008A1C  6600 00E4                        241      		BNE     	RET_C
+00008A20  0C79 0001 00008008               242      		CMP.W   	#1,PEND_C             
+00008A28  6600 00D8                        243      		BNE     	RET_C	
+00008A2C                                   244  		
+00008A2C  207C 00002008                    245  		MOVEA.L 	#PIAACD,A0           ; preparazione lettura
+00008A32  227C 00008032                    246      		MOVEA.L 	#BUFF_C,A1
+00008A38  3439 00008012                    247      		MOVE.W  	CHAR_C,D2
+00008A3E  1390 2000                        248      		MOVE.B  	(A0),(A1,D2.W)	     ; lettura C
+00008A42                                   249      
+00008A42  5279 00008012                    250      		ADDQ.W  	#1,CHAR_C            
+00008A48  33FC 0000 00008008               251      		MOVE.W  	#0,PEND_C         
+00008A50                                   252      
+00008A50  0C79 0004 00008012               253      		CMP.W  	#N,CHAR_C            
+00008A58  6600 00A8                        254      		BNE     	RET_C
+00008A5C                                   255  		
+00008A5C  33FC 0000 00008012               256  		MOVE.W  	#0,CHAR_C	         ; caratteri finiti, incremento mess
+00008A64  5279 00008014                    257      		ADDQ.W  	#1,MESS_TOT              
+00008A6A  5279 0000801C                    258      		ADDQ.W  	#1,INVIO_C	
+00008A70                                   259  
+00008A70  303C 0005                        260  		MOVE.W  	#K,D0                 ; verifico se B ha inviato almeno un messaggio
+00008A74  5340                             261      		SUBQ.W  	#1,D0               
+00008A76  B079 00008014                    262     		CMP.W   	MESS_TOT,D0              
+00008A7C  6600 0026                        263      		BNE     	CHECK_E_C
+00008A80                                   264  
+00008A80  0C79 0000 0000801A               265  		CMP.W  	#0,INVIO_B              
+00008A88  6600 000E                        266      		BNE     	RELEASE_C
+00008A8C  33FC 0001 00008004               267      		MOVE.W  	#POSS_B,POSSESSO     ; Forza possesso a B perché non ha inviato messaggi
+00008A94  6000 0028                        268      		BRA     	CHECK_B
+00008A98                                   269  
+00008A98  33FC 0000 00008004               270  RELEASE_C	MOVE.W	#POSS_NONE,POSSESSO
+00008AA0  6000 001C                        271  		BRA     	CHECK_B
+00008AA4                                   272  
+00008AA4  0C79 0005 00008014               273  CHECK_E_C	CMPI.W	#K,MESS_TOT               
+00008AAC  66EA                             274      		BNE     	RELEASE_C
+00008AAE  33FC 0001 0000800E               275      		MOVE.W  	#1,END_TOT           ; END = 1
+00008AB6  33FC 0000 00008004               276      		MOVE.W  	#POSS_NONE,POSSESSO
+00008ABE                                   277  
+00008ABE  0C79 0000 00008006               278  CHECK_B	CMP.W	#0,PEND_B             
+00008AC6  6700 003A                        279      		BEQ     	RET_C
+00008ACA  0C79 0000 0000800E               280      		CMP.W   	#0,END_TOT
+00008AD2  6600 002E                        281      		BNE     	RET_C
+00008AD6                                   282  
+00008AD6  33FC 0001 00008004               283  		MOVE.W 	#POSS_B,POSSESSO     ; possesso = B
+00008ADE  33FC 0000 00008006               284      		MOVE.W  	#0,PEND_B         
+00008AE6  3239 00008010                    285  		MOVE.W  	CHAR_B,D1	         ; Sposto prima il CharB 
+00008AEC  5279 00008010                    286  		ADDQ.W  	#1,CHAR_B            ; incremento prima il carattere
+00008AF2                                   287  
+00008AF2  207C 00002004                    288      		MOVEA.L 	#PIAABD,A0           ; Leggi da B per sbloccare 
+00008AF8  227C 0000801E                    289      		MOVEA.L 	#BUFF_B,A1
+00008AFE  1390 1000                        290      		MOVE.B  	(A0),(A1,D1.W)
+00008B02  4CDF 0307                        291  RET_C		MOVEM.L	(SP)+,D0-D2/A0-A1
+00008B06  4E73                             292      		RTE
+00008B08                                   293  
+00008B08                                   294  		END 		MAIN
 
 No errors detected
 No warnings generated

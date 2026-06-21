@@ -1,313 +1,315 @@
-*	AREA DATI 
-		ORG 		$8000
-N		EQU		4 
-K 		EQU 		5 
-NONE 		EQU		0 
-B	 	EQU 		1 
-C		EQU		2
-PIADA_B	EQU		$2004
-PIACA_B	EQU		$2005
-PIADA_C	EQU		$2006
-PIACA_C	EQU		$2007
-
-FASE		DC.W		0
-LOCK		DC.W		0
-POSS		DC.W		NONE * VARIABILE DI POSSESSO (0 NESSUNO, B == 1 E C == 2)
-BUFFB		DS.B		N  * IN FASE 2 USO 2 BUFFER DIVERSI PER B E C PER EVITARE CHE SI DIANO FASTIDIO
-BUFFC		DS.B		N 
-CHARB		DC.W		0
-MSGB		DC.W		0 
-COUNTB	DC.W		0
-FINEB		DC.W		0
-PENDINGB	DC.W		0
-CHARC		DC.W		0
-MSGC		DC.W		0
-COUNTC	DC.W		0
-FINEC		DC.W		0
-PENDINGC	DC.W		0
-MSG		DC.W		0		* CONTATORE DEI MESSAGGI TOTALI IN FASE 2
 
 
-*	MAIN
-		ORG		$8200
-* SALTA AD INIT, DOVE VADO A SETTARE LE PIA, POI TORNO PER SETTARE LO STATUS REGISTER
-MAIN		JSR		INIT
-		MOVE.W	SR,D0
-		ANDI.W	#$D8FF,D0
-		MOVE.W	D0,SR
-LOOP		JMP		LOOP
 
-* SET DELLE PIA: 1. SELEZIONO IL DDR E LO METTO IN RICEZIONE, POI ABILITO L'HANDSHAKE NEL REGISTRO DI CONTROLLO
-INIT		CLR.B		PIACA_B
-		CLR.B		PIADA_B
-		MOVE.B	#%00100101,PIACA_B
-		CLR.B		PIACA_C
-		CLR.B		PIADA_C
-		MOVE.B	#%00100101,PIACA_C
+*definizioni costanti
+PIAABD	EQU     $2004       ; Registro Dati PIA B 
+PIAABC	EQU	$2005       ;Registro Controllo PIA B		
+PIAACD	EQU	$2008	     ;Registro Dato PIA C
+PIAACC		EQU     $2009       ; Registro Controllo PIA C 
+
+N	EQU     4          	
+K	EQU     5           	
+
+POSS_NONE   EQU     0           
+POSS_B      	EQU     1           
+POSS_C      	EQU     2           
+
+*definizioni Variabili
+	ORG	$8000
+LOCK        	DC.W    0
+FASE        	DC.W    1
+POSSESSO    	DC.W    0
+PEND_B   	DC.W    0
+PEND_C   	DC.W    0
+END_B       	DC.W    0
+END_C       	DC.W    0
+END_TOT     	DC.W    0
+CHAR_B      	DC.W    0
+CHAR_C      	DC.W    0
+MESS_TOT      DC.W    0
+MESS_B      	DC.W    0
+MESS_C	DC.W	 0
+INVIO_B     	DC.W    0
+INVIO_C     	DC.W    0
+BUFF_B      	DS.B    N*K
+BUFF_C      	DS.B    N*K
+
+*main
+	ORG	$8200
+MAIN	JSR INIT_PIA
+	
+	MOVE.W	SR,D0
+	ANDI.W	#$D8FF,D0
+	MOVE.W	D0,SR
+
+LOOP 	JMP	LOOP
+
+
+INIT_PIA	MOVE.B	#0,PIAABC
+		MOVE.B	#0,PIAABD
+		MOVE.B	#%00100101,PIAABC
+
+		MOVE.B	#0,PIAACC
+		MOVE.B	#0,PIAACD
+		MOVE.B	#%00100101,PIAACC
 		RTS
 
-***	-----	ISR_B		------***
-		ORG		$8700
-* SALVO I REGISTRI SULLO STACK
-ISRB		MOVEM.L	D0-D4/A0-A1,-(A7)
+*ISR B
+	ORG	$8700
+ISR_B		
+		MOVEM.L 	D0-D2/A0-A1,-(SP)    
+		MOVE.W	#1,PEND_B         
+    		CMPI.W 	#1,FASE              
+		BNE     	FASE_2
+FASE_1	CMP.W	#0,END_B	
+		BNE		RETURN
 
-* SE FASE == 2 TERMINO IL PROCESSO ANDANDO IN STOPB
-		CMP.W	#2,FASE
-		BEQ		STOPB
-
-* SE NON SONO ANDATO IN STOPB, ALLORA PENDINGB = 1 INDICA CHE C'Ã¨
-* UN CARATTERE DA RICEVERE DA B
-		MOVE.W	#1,PENDINGB
-
-* CONTROLLO SU FASE, SE VALE 1 VADO IN CKF2 (FASE 2), SENNÃ² IN FASE 1
-		TST.W		FASE
-		BNE		CKF2
-* SE FINEB Ã¨ ALTO VADO IN IGNB DOVE AZZERO PENDINGB E SALTO A ENDMSG
-		CMP.W	#1,FINEB
-		BEQ		IGNB
-
-
-ORJMP		LEA		BUFFB,A0
-		* RICEVI CARATTERE
-		MOVE.W	CHARB,D0
-		MOVE.B	PIADA_B,(A0,D0)
-		ADDQ.W	#1,D0
-		MOVE.W	D0,CHARB
-		CLR.W		PENDINGB
-		* VERIFICA SE HO RICEVUTO N CARATTERI (1 MSG)
-		CMP.W		#N,D0
-		BNE		EXIT
-		* INCREMENTO N. MESSAGGI
-		MOVE.W	MSGB,D1
-		ADDQ.W	#1,D1
-		MOVE.W	D1,MSGB
-		CLR.W		CHARB
-		* VERIFICA SE HO RICEVUTO K MESSAGGI
-		* SE NO, ESCI, ALTRIMENTI ALZA FINEB
-		CMP.W	#K,MSGB
-		BNE		EXIT
-		MOVE.W	#1,FINEB
-		BRA		RECC
-
-IGNB		MOVE.B	PIADA_B,D0
-		CLR.W		PENDINGB
-		BRA		ENDMSG
-
-** RECUPERO DEL CARATTERE
-RECC		CMP.W 	#1,PENDINGC
-		BNE		ENDMSG
-		* SE C HA FINITO, PASSA ALLA FASE 2
-		CMP.W	#1,FINEC
-		BNE		ENDMSG
-		* SE C NON HA FINITO, LA ISR DI B AIUTA L'ALTRA ISR
-		* A SPOSTARE I DATI CON I CICLI DI CLOCK RIMANENTI
-		MOVE.W	CHARC,D2
-		ADDQ.W	#1,D2
-		CLR.W		PENDINGC
-		MOVE.W	D2,CHARC
-		SUBQ.W	#1,D2
-		LEA		BUFFC,A0
-		MOVE.B	PIADA_C,(A0,D2)
-	
-ENDMSG		CMP.W		#1,FINEC
-		BNE		EXIT
-		MOVE.W	FASE,D3
-		ADDQ.W	#1,D3
-		MOVE.W	D3,FASE
-		BRA		EXIT
-
-* IN FASE 2, NON CI SONO SOVRAPPOSIZIONI.
-* QUINDI, CONTROLLO SE LA VARIABILE DI POSSESSO Ã¨ LIBERA (0)
-* USO LA MUTUA ESCLUSIONE PER PROTEGGERE L'ACCESSO A POSS
-* SETTO LA VARIABILE DI POSSESSO A #B
-FASE2		CMP.W	#NONE,POSS
-		BNE		CKPOSS
-		TAS		LOCK
-		BNE		EXIT
-		CMP.W	#NONE,POSS
-		BNE		RELEASE
-		MOVE.W	#B,POSS
-
-* RILASCIA LOCK E VAI A RICEVERE IL PROSSIMO CARATTERE
-RELEASE	CLR.W		LOCK
-		BRA		CKPOSS
-
-STOPB		MOVE.B	PIADA_B,D0
-		BRA		EXIT
+		MOVEA.L 	#PIAABD,A0           ; Carica indirizzo dati PIA B (preparazione per la lettura)
+   		MOVEA.L 	#BUFF_B,A1           
+   		MOVE.W  	CHAR_B,D1            
+    
+   		MOVE.B  	(A0),(A1,D1.W)       ;LETTURA B
+    		CLR.W  	PEND_B        
+    
+    		ADDQ.W  	#1,CHAR_B            
+    		CMPI.W  	#N,CHAR_B           
+    		BNE     	RETURN
+   		
+		CLR.W 	CHAR_B            
+    		ADDQ.W  	#1,MESS_B            
+    
+    		CMPI.W  	#K,MESS_B            
+    		BNE     	RETURN
+    
+    		MOVE.W 	#1,END_B             ; endB = 1
+    		CMP.W   	#0,END_C                 
+    		BEQ     	RETURN
 		
-EXIT		MOVEM.L	(A7)+,D0-D4/A0-A1
-		RTE
+		MOVE.W  	#2,FASE              ; FASE = 2
+CHEK_C1    	CMP.W  	#0,PEND_C             
+    		BEQ     	RETURN
+    
+    		MOVE.W  	#POSS_C,POSSESSO     ; possesso = C (perché adesso entriamo in fase 2)
+    		CLR.W  	PEND_C        
+		MOVE.W  	CHAR_C,D2	        ;Sposto prima il CharC perché lo incremento prima di fare la lettura
+		ADDQ.W  	#1,CHAR_C            ; incremento prima il carattere e poi sblocco la PIA
+    
+    		MOVEA.L	#PIAACD,A0           ; Sblocco PIA C
+    		MOVEA.L 	#BUFF_C,A1
+    		MOVE.B  	(A0),(A1,D2.W)       ; buffC[charC] = readPIA(C)
+    		BRA     	RETURN
 
-* SE B HA IL POSSESSO, SETTA PENDINGB E RICEVI IL CARATTERE
-CKPOSS	CMP.W		#B,POSS
-		BNE		EXIT
-		CMP.W	#1,PENDINGB
-		BNE		EXIT
-		LEA		BUFFB,A0
-		MOVE.W	CHARB,D0
-		MOVE.W	MSG,D1
-		MOVE.W	COUNTB,D2
-		MOVE.B	PIADA_B,(A0,D0)
-		CLR.W		PENDINGB
-		ADDQ.W	#1,D0
-		MOVE.W	D0,CHARB
-		CMP.W	#N,CHARB
-		BNE		EXIT
-		ADDQ.W	#1,D1
-		MOVE.W	D1,MSG
-		CLR.W		CHARB
-		ADDQ.W	#1,D2
-		MOVE.W	D2,COUNTB
-
-		* SE MSG NON VALE K (HO INVIATO K MESSAGGI) DO IL POSSESSO A C
-		CMP.W	#K,D1
-		BNE		CNGPOSS
-		* ALTRIMENTI, SE HO INVIATO K MSG ALLORA METTO #2 IN FASE (CHIUSURA DEL PROGRAMMA)
-		MOVE.W	#2,FASE
-		BRA		EXIT
+FASE_2	CMP.W   	#0,END_TOT               
+   	 	BNE     	RETURN
+    
+    		CMPI.W  	#POSS_NONE,POSSESSO  
+    		BNE     	CHECK_READ
+    
+    		TAS     		LOCK                  
+    		BNE     	RETURN
+    
+    		CMPI.W  	#POSS_NONE,POSSESSO 
+   	 	BNE     	UNLOCK_RET
+    		MOVE.W 	#POSS_B,POSSESSO
+		CLR.W		LOCK
+		BRA		CHECK_READ
 		
-CNGPOSS		CMP.W	#(K-1),D2
-		BNE		ELSEPOSS
-		MOVE.W	#C,POSS
-		BRA		REC
+UNLOCK_RET	CLR.W		LOCK
+		BRA 		RETURN	
 
-ELSEPOSS	CLR.W		POSS
-
-
-REC		CMP.W		#1,PENDINGC
-		BNE		EXIT
-		MOVE.W	#C,POSS
-		CLR.W		PENDINGC
-		MOVE.W	CHARC,D3
-		ADD.W		#1,D3
-		MOVE.W	D3,CHARC
-		SUB.W		#1,D3
-		LEA		BUFFC,A1
-		MOVE.B	PIADA_C,(A1,D3)
-		BRA		EXIT
-
-CKF2		JMP		FASE2
-
-***	-----	ISR_C		------***
-		ORG		$8900
-ISRC		MOVEM.L	D0-D4/A0-A1,-(A7)
-**PER FINIRE PROCESSO
-		CMP.W	#2,FASE
-		BEQ		STOPC
-
-		MOVE.W	#1,PENDINGC
-		TST.W		FASE
-		BNE		CF2C
-
-		CMP.W	#1,FINEC
-		BEQ		IGNC
-
-ORJMPC	LEA		BUFFC,A0
-		MOVE.W	CHARC,D0
-
-		MOVE.B	PIADA_C,(A0,D0)
-		ADDQ.W	#1,D0
-		MOVE.W	D0,CHARC
-		CLR.W		PENDINGC
-		CMP.W		#N,D0
-		BNE		EXITC
-		MOVE.W	MSGC,D1
-		ADDQ.W	#1,D1
-		MOVE.W	D1,MSGC
-		CLR.W		CHARC
-		CMP.W	#K,D1
-		BNE		EXITC
+CHECK_READ	CMP.W  	#POSS_B,POSSESSO     
+    		BNE     	RETURN
+    		CMP.W   	#1,PEND_B             
+    		BNE     	RETURN	
 		
-		MOVE.W	#1,FINEC
-		BRA		RECB
-IGNC		MOVE.B	PIADA_C,D0
-		CLR.W		PENDINGC
-		BRA		ENDMSGC
-
-RECB		CMP.W	#1,PENDINGB
-		BNE		ENDMSGC
-		CMP.W	#1,FINEB
-		BNE		ENDMSGC
-		MOVE.W	CHARB,D2
-		ADDQ.W	#1,D2
-		CLR.W		PENDINGB
-		MOVE.W	D2,CHARB
-		SUBQ.W	#1,D2	
-		LEA		BUFFB,A0
-		MOVE.B	PIADA_B,(A0,D2)	
-
-ENDMSGC	CMP.W		#1,FINEB
-		BNE		EXITC
-		MOVE.W	FASE,D3
-		ADDQ.W	#1,D3
-		MOVE.W	D3,FASE
-		BRA		EXITC
-
-FASE2C	CMP.W	#NONE,POSS
-		BNE		CKPOSSC
-		TAS		LOCK
-		BNE		EXITC
-		CMP.W		#NONE,POSS
-		BNE		RELEASEC
-		MOVE.W	#C,POSS
+		MOVEA.L 	#PIAABD,A0           ;preparazione lettura
+    		MOVEA.L 	#BUFF_B,A1
+    		MOVE.W  	CHAR_B,D1
+    		MOVE.B  	(A0),(A1,D1.W)	;lettura B
+    
+    		ADDQ.W  	#1,CHAR_B            
+    		CLR.W  	PEND_B         
+    
+    		CMP.W  	#N,CHAR_B            
+    		BNE     	RETURN
 		
-RELEASEC	CLR.W		LOCK
-		BRA		CKPOSSC
+		CLR.W  	CHAR_B	;caratteri finiti, incremento mess
+    		ADDQ.W  	#1,MESS_TOT              
+    		ADDQ.W  	#1,INVIO_B	
 
-STOPC		MOVE.B	PIADA_C,D0
-		BRA		EXITC
+		MOVE.W  	#K,D0                 ; devo verificare se anche C ha inviato almeno un messaggio
+    		SUBQ.W  	#1,D0               
+   		CMP.W   	MESS_TOT,D0              
+    		BNE     	CHECK_END
 
-EXITC		MOVEM.L	(A7)+,D0-D4/A0-A1
-		RTE
+		CMP.W  	#0,INVIO_C              
+    		BNE     	RELEASE
+    		MOVE.W  	#POSS_C,POSSESSO     ; Forza possesso a C perché ancora non ha inviato il messaggio
+    		BRA     	CHECK_C
 
-CKPOSSC	CMP.W		#C,POSS
-		BNE		EXITC
-		CMP.W	#1,PENDINGC
-		BNE		EXITC
-		LEA		BUFFC,A0
-		MOVE.W	CHARC,D0
-		MOVE.W	MSG,D1
-		MOVE.W	COUNTC,D2
-		MOVE.B	PIADA_C,(A0,D0)
-		CLR.W		PENDINGC
-		ADDQ.W	#1,D0
-		MOVE.W	D0,CHARC
-		CMP.W		#N,D0
-		BNE		EXITC
-		ADDQ.W	#1,D1
-		MOVE.W	D1,MSG
-		CLR.W		CHARC
-		ADDQ.W	#1,D2
-		MOVE.W	D2,COUNTC
+RELEASE	MOVE.W  	#POSS_NONE,POSSESSO
+		BRA     	CHECK_C
+
+CHECK_END   CMPI.W   	#K,MESS_TOT               
+    		BNE     	RELEASE
+    		MOVE.W  	#1,END_TOT           ; END = 1
+    		MOVE.W  	#POSS_NONE,POSSESSO
+
+CHECK_C    	CMP.W   	#0,PEND_C             
+    		BEQ     	RETURN
+    		CMP.W   	#0,END_TOT
+    		BNE     	RETURN
+
+		MOVE.W 	#POSS_C,POSSESSO     ; possesso = C
+    		CLR.W 	PEND_C         
+		MOVE.W  	CHAR_C,D2	        ;Sposto prima il CharC perché lo incremento prima di fare la lettura
+		ADDQ.W  	#1,CHAR_C            ; incremento prima il carattere e poi sblocco la PIA
+
+    		MOVEA.L 	#PIAACD,A0           ; Leggi da C per sbloccare 
+    		MOVEA.L 	#BUFF_C,A1
+    		MOVE.B  	(A0),(A1,D2.W)
+    
+RETURN    	MOVEM.L 	(SP)+,D0-D2/A0-A1    ; Ripristino registri
+    		RTE
+
+*ISR C
+		ORG	$8900              
+ISR_C		
+		MOVEM.L 	D0-D2/A0-A1,-(SP)    
+		MOVE.W	#1,PEND_C         
+    		CMPI.W 	#1,FASE              
+		BNE     	FASEC_2
+
+FASEC_1	CMP.W	#0,END_C	
+		BNE		RET_C
+
+		MOVEA.L 	#PIAACD,A0           ; Carica indirizzo dati PIA C
+   		MOVEA.L 	#BUFF_C,A1           
+   		MOVE.W  	CHAR_C,D2            
+    
+   		MOVE.B  	(A0),(A1,D2.W)       ; LETTURA C
+    		MOVE.W  	#0,PEND_C        
+    
+    		ADDQ.W  	#1,CHAR_C             
+    		CMPI.W  	#N,CHAR_C           
+    		BNE     	RET_C
+   		
+		MOVE.W  	#0,CHAR_C            
+    		ADDQ.W  	#1,MESS_C            
+    
+    		CMPI.W  	#K,MESS_C            
+    		BNE     	RET_C
+    
+   		MOVE.W 	#1,END_C             ; endC = 1
+    		CMP.W   	#0,END_B                 
+    		BEQ     	RET_C
 		
-		CMP.W	#K,D1
-		BNE		CNGPOSC
-		MOVE.W	#2,FASE
-		BRA		EXITC
+		MOVE.W  	#2,FASE              ; FASE = 2
+CHEK_B1    	CMP.W  	#0,PEND_B             
+    		BEQ     	RET_C
+    
+    		MOVE.W  	#POSS_B,POSSESSO     ; possesso = B (entriamo in fase 2)
+    		MOVE.W  	#0,PEND_B        
+		MOVE.W  	CHAR_B,D1	         ; Sposto prima il CharB 
+		ADDQ.W  	#1,CHAR_B            ; incremento prima di sbloccare la PIA
+    
+    		MOVEA.L	#PIAABD,A0           ; Sblocco PIA B
+    		MOVEA.L 	#BUFF_B,A1
+    		MOVE.B  	(A0),(A1,D1.W)       ; buffB[charB] = readPIA(B)
+    		BRA     	RET_C
 
-CNGPOSC	CMP.W	#(K-1),D2
-		BNE		ELSEPOSC
-		MOVE.W	#B,POSS
-		BRA		RCVC
 
-ELSEPOSC	CLR.W		POSS
+FASEC_2	CMP.W   	#0,END_TOT               
+   	 	BNE     	RET_C
+    
+    		CMPI.W  	#POSS_NONE,POSSESSO  
+    		BNE     	CHECK_R_C
+    
+    		TAS     		LOCK                  
+    		BNE     	RET_C
+    
+    		CMPI.W  	#POSS_NONE,POSSESSO 
+   	 	BNE		UNL_RET_C
+    		MOVE.W 	#POSS_C,POSSESSO
+		MOVE.W	#0,LOCK
+		BRA		CHECK_R_C
 
+UNL_RET_C	MOVE.W	#0,LOCK
+		BRA 		RET_C	
 
-RCVC		CMP.W		#1,PENDINGB
-		BNE		EXITC
-		MOVE.W	#B,POSS
-		CLR.W		PENDINGB
-		MOVE.W	CHARB,D3
-		ADDQ.W	#1,D3
-		MOVE.W	D3,CHARB
-		SUBQ.W	#1,D3
-		LEA		BUFFB,A1
-		MOVE.B	PIADA_B,(A1,D3)
-		BRA		EXITC
-
-CF2C		JMP		FASE2C
+CHECK_R_C	CMP.W  	#POSS_C,POSSESSO     
+    		BNE     	RET_C
+    		CMP.W   	#1,PEND_C             
+    		BNE     	RET_C	
 		
-		END		MAIN
+		MOVEA.L 	#PIAACD,A0           ; preparazione lettura
+    		MOVEA.L 	#BUFF_C,A1
+    		MOVE.W  	CHAR_C,D2
+    		MOVE.B  	(A0),(A1,D2.W)	     ; lettura C
+    
+    		ADDQ.W  	#1,CHAR_C            
+    		MOVE.W  	#0,PEND_C         
+    
+    		CMP.W  	#N,CHAR_C            
+    		BNE     	RET_C
+		
+		MOVE.W  	#0,CHAR_C	         ; caratteri finiti, incremento mess
+    		ADDQ.W  	#1,MESS_TOT              
+    		ADDQ.W  	#1,INVIO_C	
+
+		MOVE.W  	#K,D0                 ; verifico se B ha inviato almeno un messaggio
+    		SUBQ.W  	#1,D0               
+   		CMP.W   	MESS_TOT,D0              
+    		BNE     	CHECK_E_C
+
+		CMP.W  	#0,INVIO_B              
+    		BNE     	RELEASE_C
+    		MOVE.W  	#POSS_B,POSSESSO     ; Forza possesso a B perché non ha inviato messaggi
+    		BRA     	CHECK_B
+
+RELEASE_C	MOVE.W	#POSS_NONE,POSSESSO
+		BRA     	CHECK_B
+
+CHECK_E_C	CMPI.W	#K,MESS_TOT               
+    		BNE     	RELEASE_C
+    		MOVE.W  	#1,END_TOT           ; END = 1
+    		MOVE.W  	#POSS_NONE,POSSESSO
+
+CHECK_B	CMP.W	#0,PEND_B             
+    		BEQ     	RET_C
+    		CMP.W   	#0,END_TOT
+    		BNE     	RET_C
+
+		MOVE.W 	#POSS_B,POSSESSO     ; possesso = B
+    		MOVE.W  	#0,PEND_B         
+		MOVE.W  	CHAR_B,D1	         ; Sposto prima il CharB 
+		ADDQ.W  	#1,CHAR_B            ; incremento prima il carattere
+
+    		MOVEA.L 	#PIAABD,A0           ; Leggi da B per sbloccare 
+    		MOVEA.L 	#BUFF_B,A1
+    		MOVE.B  	(A0),(A1,D1.W)
+RET_C		MOVEM.L	(SP)+,D0-D2/A0-A1
+    		RTE
+
+		END 		MAIN
+		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
